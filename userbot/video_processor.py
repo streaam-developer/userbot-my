@@ -54,11 +54,12 @@ class VideoProcessor:
                 caption = getattr(message, 'text', None) or getattr(message, 'caption', None) or ""
 
                 # Upload to target channel preserving original format
-                uploaded_message = await self.client.send_video(
-    chat_id=TARGET_CHANNEL_ID,
-    video=video_path,
-    caption=caption,
-    **upload_kwargs
+                uploaded_message = await self.client.send_file(
+                    entity=TARGET_CHANNEL_ID,
+                    file=video_path,
+                    caption=caption,
+                    supports_streaming=True,
+                    **upload_kwargs
 )
 
                 logger.info("Successfully re-uploaded video to target channel preserving original format")
