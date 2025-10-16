@@ -117,7 +117,7 @@ class VideoProcessor:
             sample_message_id = int(time.time()) % 1000000
 
             string = f"get-{sample_message_id * abs(int(FILE_STORE_CHANNEL[0]))}"
-            base64_string = encode(string)
+            base64_string = await encode(string)
 
             if base64_string:
                 access_link = f"https://t.me/boltarhegabot?start={base64_string}"
