@@ -46,17 +46,15 @@ if not API_ID or not API_HASH:
 client = TelegramClient(SESSION_NAME, int(API_ID), API_HASH)
 
 class UserBot:
-    def __init__(self, telegram_client):
-        self.client = telegram_client
+    def __init__(self):
         self.processing_links = set()
         self.processed_links = set()  # Track links that have been successfully processed
         self.processed_video_file_ids = set()
-        self.link_to_access_map = {}  # Map bot links to their generated access links
 
         # Initialize helper classes
         self.bot_handlers = BotHandlers(self)
-        self.video_processor = VideoProcessor(self.client)
-        self.channel_manager = ChannelManager(self.client)
+        self.video_processor = VideoProcessor(client)
+        self.channel_manager = ChannelManager(client)
 
     async def join_channel(self, channel_link):
         """Join a channel using the channel manager"""
@@ -69,10 +67,6 @@ class UserBot:
     async def download_and_reupload_video(self, message):
         """Download and re-upload video using the video processor"""
         return await self.video_processor.download_and_reupload_video(message)
-
-    async def process_video_for_link(self, message):
-        """Process video and return access link without sending to target channel"""
-        return await self.video_processor.process_video_for_link(message)
 
     async def process_bot_link(self, bot_link):
         """Process bot link and extract videos"""
@@ -383,7 +377,7 @@ class UserBot:
             raise
 
 async def main():
-    userbot = UserBot(client)
+    userbot = UserBot()
     await userbot.start()
 
 if __name__ == '__main__':
