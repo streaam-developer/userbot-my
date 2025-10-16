@@ -19,11 +19,11 @@ from telethon.errors import (
     TimeoutError,
     UserBannedInChannelError,
 )
-from video_processor import VideoProcessor
 
 from .bot_handlers import *
 from .channel_manager import *
 from .config import API_HASH, API_ID, SESSION_NAME, TARGET_BOT_USERNAME
+from .video_processor import VideoProcessor
 
 # Configure logging
 logging.basicConfig(
