@@ -126,8 +126,14 @@ class VideoProcessor:
             post_key = self.save_temp_post(original_message)
             logger.info(f"Processing bot link for temporary post: {post_key}")
 
-            # Generate access link by processing the bot link
-            access_link = await self.generate_access_link_from_bot_link(bot_link)
+            # Generate access link using original message's channel_id and id
+            if original_message and hasattr(original_message, 'chat_id') and hasattr(original_message, 'id'):
+                channel_id = original_message.chat_id
+                message_id = original_message.id
+                access_link = await self.generate_access_link(message_id, channel_id=channel_id, is_batch=False)
+            else:
+                logger.error("Original message missing chat_id or id, cannot generate access link")
+                access_link = None
 
             if access_link:
                 logger.info(f"Generated access link: {access_link}")
