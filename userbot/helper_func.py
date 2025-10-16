@@ -6,11 +6,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def encode(text):
-    """Encode text to base64"""
+async def encode(string):
+    """Encode string to base64 using urlsafe method (matching your existing code)"""
     try:
-        encoded_bytes = base64.b64encode(text.encode('utf-8'))
-        return encoded_bytes.decode('utf-8')
+        # Use urlsafe_b64encode to match your existing code style
+        encoded_bytes = base64.urlsafe_b64encode(string.encode('utf-8'))
+        return encoded_bytes.decode('utf-8').rstrip('=')  # Remove padding like in your code
     except Exception as e:
         logger.error(f"Error encoding text: {e}")
         return None
@@ -18,7 +19,12 @@ def encode(text):
 def decode(base64_string):
     """Decode base64 string"""
     try:
-        decoded_bytes = base64.b64decode(base64_string.encode('utf-8'))
+        # Add padding back if needed
+        missing_padding = len(base64_string) % 4
+        if missing_padding:
+            base64_string += '=' * (4 - missing_padding)
+
+        decoded_bytes = base64.urlsafe_b64decode(base64_string.encode('utf-8'))
         return decoded_bytes.decode('utf-8')
     except Exception as e:
         logger.error(f"Error decoding base64: {e}")

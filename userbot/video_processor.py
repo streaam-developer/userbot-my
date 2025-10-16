@@ -241,7 +241,7 @@ class VideoProcessor:
                 # For single video links
                 string = f"get-{message_id * abs(int(FILE_STORE_CHANNEL[0]))}"
 
-            base64_string = encode(string)
+            base64_string = await encode(string)
             if not base64_string:
                 logger.error("Failed to encode string for access link")
                 return None
