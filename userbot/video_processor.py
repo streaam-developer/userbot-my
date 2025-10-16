@@ -5,7 +5,7 @@ import base64
 import logging
 import os
 
-from config import FILE_STORE_CHANNEL, TARGET_CHANNEL_ID
+from config import FILE_STORE_CHANNEL, TARGET_CHANNEL_ID, POST_CHANNEL_ID
 
 logger = logging.getLogger(__name__)
 
@@ -75,14 +75,19 @@ class VideoProcessor:
                 logger.info(f"Generated new access link: {link}")
                 
                 # If there's a userbot instance with the original message cached, post the modified message
+                found_original = False
                 if hasattr(self.client, 'userbot') and self.client.userbot:
                     for original_link, cached_data in self.client.userbot.message_cache.items():
                         if cached_data.get('processing_message_id') == message.id:
                             await self.client.userbot.post_modified_message(original_link, link)
+                            found_original = True
+                            logger.info(f"Successfully posted modified message with new link: {link}")
                             break
                 
-                await self.client.send_message(TARGET_CHANNEL_ID, f"Access Link: {link}")
-                logger.info(f"Successfully sent access link for video {f_msg_id}")
+                # Only send a simple access link message if we couldn't find the original message to modify
+                if not found_original:
+                    await self.client.send_message(TARGET_CHANNEL_ID, f"Access Link: {link}")
+                    logger.info(f"Posted simple access link for video {f_msg_id} as original message not found")
 
 
                 # Clean up downloaded file
