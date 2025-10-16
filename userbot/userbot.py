@@ -104,6 +104,32 @@ class UserBot:
             logger.error(f"Error forwarding video: {str(e)}")
             return False
 
+    async def download_and_reupload_video(self, message):
+        """Download video and re-upload to target channel"""
+        try:
+            logger.info("Downloading video for re-upload...")
+            # Download the video
+            video_path = await message.download_media()
+            if video_path:
+                logger.info(f"Downloaded video to: {video_path}")
+                # Upload to target channel
+                await client.send_file(TARGET_CHANNEL_ID, video_path, caption="Video content")
+                logger.info("Successfully re-uploaded video to target channel")
+                # Clean up downloaded file
+                import os
+                try:
+                    os.remove(video_path)
+                    logger.info("Cleaned up downloaded video file")
+                except Exception as e:
+                    logger.warning(f"Could not clean up file: {e}")
+                return True
+            else:
+                logger.error("Failed to download video")
+                return False
+        except Exception as e:
+            logger.error(f"Error in download and re-upload: {str(e)}")
+            return False
+
     async def process_bot_link(self, bot_link):
         """Process bot link and extract videos"""
         logger.info(f"Starting to process bot link: {bot_link}")
@@ -203,13 +229,21 @@ class UserBot:
                                         new_response = await conv.get_response(timeout=30)
                                         logger.info(f"Received response after button click: {new_response.text[:200]}...")
 
+                                        # Check if video is forwardable, if not, download and re-upload
                                         if hasattr(new_response, 'video') and new_response.video:
                                             logger.info("Found video in button click response")
-                                            success = await self.forward_video(new_response)
-                                            if success:
-                                                logger.info("Successfully forwarded video from button response")
-                                            else:
-                                                logger.error("Failed to forward video from button response")
+                                            try:
+                                                # Try to forward first
+                                                success = await self.forward_video(new_response)
+                                                if success:
+                                                    logger.info("Successfully forwarded video from button response")
+                                                else:
+                                                    logger.error("Failed to forward video, trying download and re-upload...")
+                                                    # Download and re-upload the video
+                                                    await self.download_and_reupload_video(new_response)
+                                            except Exception as e:
+                                                logger.warning(f"Forward failed, trying download and re-upload: {e}")
+                                                await self.download_and_reupload_video(new_response)
 
                                         await asyncio.sleep(5)  # Increased delay to avoid floodwait
                                     except FloodWaitError as e:
@@ -240,7 +274,8 @@ class UserBot:
                                             if hasattr(button, 'url') and button.url:
                                                 if 't.me/' in button.url and ('joinchat' in button.url or '/+' in button.url or '@' in button.url):
                                                     await self.join_channel(button.url)
-                                                elif 't.me/' in button.url and 'bot' in button.url and any(bot.lower() in button.url.lower() for bot in TARGET_BOT_USERNAMES):
+                                                # Skip URL buttons that contain video-related links, only process target bot links
+                                                elif 't.me/' in button.url and 'bot' in button.url and any(bot.strip('@').lower() in button.url.lower() for bot in TARGET_BOT_USERNAMES):
                                                     additional_bot_links.append(button.url)
                                                 await asyncio.sleep(5)
                                             elif hasattr(button, 'data'):
@@ -275,24 +310,38 @@ class UserBot:
                             for message in message_list:
                                 if hasattr(message, 'video') and message.video:
                                     logger.info(f"Found video in message ID: {getattr(message, 'id', 'unknown')}")
-                                    success = await self.forward_video(message)
-                                    if success:
+                                    try:
+                                        success = await self.forward_video(message)
+                                        if success:
+                                            video_count += 1
+                                            logger.info(f"Successfully forwarded video {video_count}")
+                                        else:
+                                            logger.warning(f"Forward failed, trying download and re-upload for message {getattr(message, 'id', 'unknown')}")
+                                            await self.download_and_reupload_video(message)
+                                            video_count += 1
+                                    except Exception as e:
+                                        logger.warning(f"Forward failed, trying download and re-upload: {e}")
+                                        await self.download_and_reupload_video(message)
                                         video_count += 1
-                                        logger.info(f"Successfully forwarded video {video_count}")
-                                    else:
-                                        logger.error(f"Failed to forward video from message ID: {getattr(message, 'id', 'unknown')}")
-                                    await asyncio.sleep(1)
+                                    await asyncio.sleep(3)
                         except (TypeError, AttributeError) as e:
                             logger.warning(f"Could not iterate messages, trying single message approach: {e}")
                             if hasattr(messages, 'video') and messages.video:
                                 logger.info(f"Found single video message ID: {getattr(messages, 'id', 'unknown')}")
-                                success = await self.forward_video(messages)
-                                if success:
-                                    logger.info("Successfully forwarded single video")
+                                try:
+                                    success = await self.forward_video(messages)
+                                    if success:
+                                        logger.info("Successfully forwarded single video")
+                                        video_count = 1
+                                    else:
+                                        logger.warning("Forward failed, trying download and re-upload for single video")
+                                        await self.download_and_reupload_video(messages)
+                                        video_count = 1
+                                except Exception as e:
+                                    logger.warning(f"Forward failed, trying download and re-upload: {e}")
+                                    await self.download_and_reupload_video(messages)
                                     video_count = 1
-                                else:
-                                    logger.error("Failed to forward single video")
-                                await asyncio.sleep(1)
+                                await asyncio.sleep(3)
 
                         logger.info(f"Total videos processed and forwarded: {video_count}")
                     else:
