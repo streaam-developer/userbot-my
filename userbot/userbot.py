@@ -95,16 +95,40 @@ class UserBot:
             return False
 
     async def download_and_reupload_video(self, message):
-        """Download video and re-upload to target channel"""
+        """Download video and re-upload to target channel preserving original format"""
         try:
             logger.info("Downloading video for re-upload...")
-            # Download the video
+            # Download the video with original attributes
             video_path = await message.download_media()
             if video_path:
                 logger.info(f"Downloaded video to: {video_path}")
-                # Upload to target channel
-                await client.send_file(TARGET_CHANNEL_ID, video_path, caption="Video content")
-                logger.info("Successfully re-uploaded video to target channel")
+
+                # Prepare upload attributes to preserve original video properties
+                upload_kwargs = {}
+
+                # Copy video attributes if available
+                if hasattr(message, 'video') and message.video:
+                    video = message.video
+                    if hasattr(video, 'duration'):
+                        upload_kwargs['duration'] = video.duration
+                    if hasattr(video, 'width') and hasattr(video, 'height'):
+                        upload_kwargs['width'] = video.width
+                        upload_kwargs['height'] = video.height
+                    if hasattr(video, 'supports_streaming'):
+                        upload_kwargs['supports_streaming'] = video.supports_streaming
+
+                # Use original caption if available, otherwise no caption
+                caption = getattr(message, 'text', None) or getattr(message, 'caption', None) or ""
+
+                # Upload to target channel preserving original format
+                await client.send_file(
+                    TARGET_CHANNEL_ID,
+                    video_path,
+                    caption=caption,
+                    **upload_kwargs
+                )
+                logger.info("Successfully re-uploaded video to target channel preserving original format")
+
                 # Clean up downloaded file
                 import os
                 try:
