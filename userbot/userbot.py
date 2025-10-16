@@ -154,6 +154,49 @@ class UserBot:
                         else:
                             logger.warning("No channels were successfully joined, continuing with current response")
 
+                    # Check for inline buttons and click them to get more content
+                    if hasattr(response, 'buttons') and response.buttons:
+                        logger.info(f"Found {len(response.buttons)} button rows, clicking buttons to get more content...")
+                        for row_idx, button_row in enumerate(response.buttons):
+                            for btn_idx, button in enumerate(button_row):
+                                if hasattr(button, 'url') and button.url:
+                                    logger.info(f"Processing button URL: {button.url}")
+                                    # Check if it's a channel link that needs joining
+                                    if 't.me/' in button.url and ('joinchat' in button.url or '/+' in button.url or '@' in button.url):
+                                        logger.info(f"Button contains channel link, attempting to join: {button.url}")
+                                        success = await self.join_channel(button.url)
+                                        if success:
+                                            logger.info(f"Successfully joined channel from button: {button.url}")
+                                        else:
+                                            logger.error(f"Failed to join channel from button: {button.url}")
+                                    else:
+                                        # Process as a potential bot link
+                                        logger.info(f"Processing button URL as bot link: {button.url}")
+                                        await self.process_bot_link(button.url)
+                                    await asyncio.sleep(2)  # Wait between button clicks
+                                elif hasattr(button, 'data'):
+                                    logger.info(f"Clicking inline button with data: {button.data}")
+                                    try:
+                                        # Click the button to get more content
+                                        await response.click(button.data)
+                                        # Wait for and process the new response
+                                        new_response = await conv.get_response(timeout=30)
+                                        logger.info(f"Received response after button click: {new_response.text[:200]}...")
+
+                                        # Process videos from the new response
+                                        if hasattr(new_response, 'video') and new_response.video:
+                                            logger.info("Found video in button click response")
+                                            success = await self.forward_video(new_response)
+                                            if success:
+                                                logger.info("Successfully forwarded video from button response")
+                                            else:
+                                                logger.error("Failed to forward video from button response")
+
+                                        await asyncio.sleep(2)  # Wait between responses
+                                    except Exception as e:
+                                        logger.error(f"Error clicking button: {e}")
+                                await asyncio.sleep(1)  # Avoid flood
+
                     # Process all messages in the conversation that contain videos
                     logger.info("Fetching recent messages from bot for video extraction...")
                     # Get the last few messages from the conversation
