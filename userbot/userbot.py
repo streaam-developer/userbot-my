@@ -68,6 +68,10 @@ class UserBot:
         """Download and re-upload video using the video processor"""
         return await self.video_processor.download_and_reupload_video(message)
 
+    async def process_video_for_link(self, message):
+        """Process video and return access link without sending to target channel"""
+        return await self.video_processor.process_video_for_link(message)
+
     async def process_bot_link(self, bot_link):
         """Process bot link and extract videos"""
         logger.info(f"Starting to process bot link: {bot_link}")
