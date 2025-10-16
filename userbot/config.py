@@ -18,7 +18,7 @@ if not BOT_TOKEN:
 
 
 # Target Channel ID where videos will be forwarded
-target_channel_id = os.getenv('TARGET_CHANNEL_ID', "")
+target_channel_id = os.getenv('TARGET_CHANNEL_ID', "-1002818242381")
 if not target_channel_id:
     raise ValueError("TARGET_CHANNEL_ID must be set in environment variables")
 TARGET_CHANNEL_ID = int(target_channel_id)
