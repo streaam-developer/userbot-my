@@ -299,18 +299,22 @@ class VideoProcessor:
             except Exception as e:
                 logger.error(f"Error posting to channel {channel_id}: {e}")
 
-    async def generate_access_link(self, message_id, is_batch=False, start_id=None, end_id=None):
+    async def generate_access_link(self, message_id, channel_id=None, is_batch=False, start_id=None, end_id=None):
         """Generate access link for uploaded video using genlink.py logic"""
         try:
             from helper_func import encode
             from info import FILE_STORE_CHANNEL
 
+            # Use provided channel_id or default to FILE_STORE_CHANNEL[0]
+            if channel_id is None:
+                channel_id = FILE_STORE_CHANNEL[0]
+
             if is_batch and start_id and end_id:
                 # For batch links (multiple videos) - EXACTLY like your commands.py line 276
-                string = f"get-{start_id * abs(FILE_STORE_CHANNEL[0])}-{end_id * abs(FILE_STORE_CHANNEL[0])}"
+                string = f"get-{start_id * abs(channel_id)}-{end_id * abs(channel_id)}"
             else:
                 # For single video links - EXACTLY like your commands.py line 263
-                string = f"get-{message_id * abs(FILE_STORE_CHANNEL[0])}"
+                string = f"get-{message_id * abs(channel_id)}"
 
             base64_string = await encode(string)
             if not base64_string:
@@ -437,7 +441,9 @@ class VideoProcessor:
 
                 if uploaded_message and hasattr(uploaded_message, 'id') and uploaded_message.id:
                     logger.info(f"Generating access link for message ID: {uploaded_message.id}")
-                    access_link = await self.generate_access_link(uploaded_message.id, is_batch=False)
+                    # Use original message's channel ID if available, otherwise use TARGET_CHANNEL_ID
+                    channel_id = getattr(original_message, 'chat_id', TARGET_CHANNEL_ID) if original_message else TARGET_CHANNEL_ID
+                    access_link = await self.generate_access_link(uploaded_message.id, channel_id=channel_id, is_batch=False)
                     if access_link:
                         logger.info(f"Generated access link: {access_link}")
                     else:
@@ -494,8 +500,11 @@ class VideoProcessor:
                 start_id = min(uploaded_message_ids)
                 end_id = max(uploaded_message_ids)
 
+                # Use original message's channel ID if available, otherwise use TARGET_CHANNEL_ID
+                channel_id = getattr(original_message, 'chat_id', TARGET_CHANNEL_ID) if original_message else TARGET_CHANNEL_ID
                 access_link = await self.generate_access_link(
                     start_id,
+                    channel_id=channel_id,
                     is_batch=True,
                     start_id=start_id,
                     end_id=end_id
@@ -518,7 +527,9 @@ class VideoProcessor:
 
             elif len(uploaded_message_ids) == 1:
                 # Single video, generate single access link
-                access_link = await self.generate_access_link(uploaded_message_ids[0], is_batch=False)
+                # Use original message's channel ID if available, otherwise use TARGET_CHANNEL_ID
+                channel_id = getattr(original_message, 'chat_id', TARGET_CHANNEL_ID) if original_message else TARGET_CHANNEL_ID
+                access_link = await self.generate_access_link(uploaded_message_ids[0], channel_id=channel_id, is_batch=False)
                 if access_link and original_message:
                     self.track_original_post(original_message, uploaded_message_ids[0], access_link)
                     await self.replace_original_link(original_message, access_link)
