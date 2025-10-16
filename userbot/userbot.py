@@ -45,7 +45,7 @@ class UserBot:
     async def join_channel(self, channel_link):
         """Join a channel with error handling and retry mechanism"""
         try:
-            if 'joinchat' in channel_link:
+            if 'joinchat' in channel_link or '/+' in channel_link:
                 invite_hash = channel_link.split('/')[-1]
                 await client(ImportChatInviteRequest(invite_hash))
             else:
@@ -98,19 +98,26 @@ class UserBot:
             self.processing_links.add(bot_link)
             logger.info(f"Added {bot_link} to processing set. Current processing: {len(self.processing_links)}")
             try:
+                # Extract bot username from the link
+                bot_username_match = re.search(r't\.me/([a-zA-Z0-9_]+bot)', bot_link)
+                if not bot_username_match:
+                    logger.warning(f"Could not extract bot username from link: {bot_link}")
+                    # Fallback to target bot username if not found in link
+                    bot_username = TARGET_BOT_USERNAME
+                else:
+                    bot_username = bot_username_match.group(1)
+
                 # Extract the start parameter or any bot command from the link
                 if 'start=' in bot_link:
-                    # This is a bot start link, extract the parameter
                     start_param = bot_link.split('start=')[-1]
                     bot_command = f"/start {start_param}"
                     logger.info(f"Extracted start parameter: {start_param}, using command: {bot_command}")
                 else:
-                    # Use the link as is
                     bot_command = bot_link
                     logger.info(f"Using link as command: {bot_command}")
 
-                logger.info(f"Starting conversation with {TARGET_BOT_USERNAME}")
-                async with client.conversation(TARGET_BOT_USERNAME) as conv:
+                logger.info(f"Starting conversation with @{bot_username}")
+                async with client.conversation(bot_username) as conv:
                     logger.info(f"Sending command to bot: {bot_command}")
                     await conv.send_message(bot_command)
                     logger.info("Waiting for bot response...")
@@ -120,20 +127,16 @@ class UserBot:
                     # Handle channel join requirement
                     if "join" in response.text.lower() or "channel" in response.text.lower():
                         logger.info("Bot requires channel join, extracting channel links...")
-                        # More comprehensive regex to find various Telegram link formats
                         channel_links = re.findall(r'https://t\.me/[^\s\n]+', response.text)
-                        # Also try to find @username format
                         username_links = re.findall(r'@([a-zA-Z0-9_]+)', response.text)
-                        # Convert usernames to links
                         for username in username_links:
-                            if username not in ['join', 'channel', 'the', 'to', 'and', 'or']:  # Filter common words
+                            if username not in ['join', 'channel', 'the', 'to', 'and', 'or']:
                                 channel_links.append(f"https://t.me/{username}")
 
                         logger.info(f"Found {len(channel_links)} channel links to join: {channel_links}")
                         joined_any = False
                         for channel_link in channel_links:
-                            # Skip if it's the bot itself
-                            if TARGET_BOT_USERNAME.lower() in channel_link.lower():
+                            if bot_username.lower() in channel_link.lower():
                                 logger.info(f"Skipping bot link: {channel_link}")
                                 continue
                             logger.info(f"Attempting to join channel: {channel_link}")
@@ -143,9 +146,8 @@ class UserBot:
                                 joined_any = True
                             else:
                                 logger.error(f"Failed to join channel: {channel_link}")
-                            await asyncio.sleep(2)  # Avoid flood
+                            await asyncio.sleep(2)
 
-                        # After joining, get the content by sending the command again
                         if joined_any:
                             logger.info("Re-sending command after joining channels...")
                             await conv.send_message(bot_command)
@@ -161,7 +163,6 @@ class UserBot:
                             for btn_idx, button in enumerate(button_row):
                                 if hasattr(button, 'url') and button.url:
                                     logger.info(f"Processing button URL: {button.url}")
-                                    # Check if it's a channel link that needs joining
                                     if 't.me/' in button.url and ('joinchat' in button.url or '/+' in button.url or '@' in button.url):
                                         logger.info(f"Button contains channel link, attempting to join: {button.url}")
                                         success = await self.join_channel(button.url)
@@ -170,20 +171,15 @@ class UserBot:
                                         else:
                                             logger.error(f"Failed to join channel from button: {button.url}")
                                     else:
-                                        # Process as a potential bot link
-                                        logger.info(f"Processing button URL as bot link: {button.url}")
-                                        await self.process_bot_link(button.url)
-                                    await asyncio.sleep(2)  # Wait between button clicks
+                                        logger.warning(f"Skipping nested bot link in button to avoid conversation error: {button.url}")
+                                    await asyncio.sleep(2)
                                 elif hasattr(button, 'data'):
                                     logger.info(f"Clicking inline button with data: {button.data}")
                                     try:
-                                        # Click the button to get more content
                                         await response.click(button.data)
-                                        # Wait for and process the new response
                                         new_response = await conv.get_response(timeout=30)
                                         logger.info(f"Received response after button click: {new_response.text[:200]}...")
 
-                                        # Process videos from the new response
                                         if hasattr(new_response, 'video') and new_response.video:
                                             logger.info("Found video in button click response")
                                             success = await self.forward_video(new_response)
@@ -192,22 +188,19 @@ class UserBot:
                                             else:
                                                 logger.error("Failed to forward video from button response")
 
-                                        await asyncio.sleep(2)  # Wait between responses
+                                        await asyncio.sleep(2)
                                     except Exception as e:
                                         logger.error(f"Error clicking button: {e}")
-                                await asyncio.sleep(1)  # Avoid flood
+                                await asyncio.sleep(1)
 
                     # Process all messages in the conversation that contain videos
                     logger.info("Fetching recent messages from bot for video extraction...")
-                    # Get the last few messages from the conversation
-                    messages = await client.get_messages(TARGET_BOT_USERNAME, limit=50)  # Get last 50 messages
+                    messages = await client.get_messages(bot_username, limit=50)
                     logger.info(f"Retrieved messages from bot (type: {type(messages)})")
 
                     if messages:
                         video_count = 0
-                        # Process messages (handle both single message and list)
                         try:
-                            # Try to iterate through messages
                             message_list = list(messages) if hasattr(messages, '__iter__') else [messages]
                             logger.info(f"Processing {len(message_list)} messages")
                             for message in message_list:
@@ -219,10 +212,9 @@ class UserBot:
                                         logger.info(f"Successfully forwarded video {video_count}")
                                     else:
                                         logger.error(f"Failed to forward video from message ID: {getattr(message, 'id', 'unknown')}")
-                                    await asyncio.sleep(1)  # Avoid flood
+                                    await asyncio.sleep(1)
                         except (TypeError, AttributeError) as e:
                             logger.warning(f"Could not iterate messages, trying single message approach: {e}")
-                            # Single message fallback
                             if hasattr(messages, 'video') and messages.video:
                                 logger.info(f"Found single video message ID: {getattr(messages, 'id', 'unknown')}")
                                 success = await self.forward_video(messages)
@@ -231,7 +223,7 @@ class UserBot:
                                     video_count = 1
                                 else:
                                     logger.error("Failed to forward single video")
-                                await asyncio.sleep(1)  # Avoid flood
+                                await asyncio.sleep(1)
 
                         logger.info(f"Total videos processed and forwarded: {video_count}")
                     else:
