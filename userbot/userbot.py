@@ -104,7 +104,6 @@ class UserBot:
                         response = await conv.get_response(timeout=30)
                     
                     # Process all messages in the conversation that contain videos
-                    async for message in conv.get_messages():
                     # Get the last few messages from the conversation
                     messages = await client.get_messages(TARGET_BOT_USERNAME, limit=50)  # Get last 50 messages
                     if messages:
