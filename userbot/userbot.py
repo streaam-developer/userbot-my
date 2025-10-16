@@ -4,25 +4,14 @@ import re
 
 from bot_handlers import BotHandlers
 from channel_manager import ChannelManager
-from config import (
-    API_HASH,
-    API_ID,
-    SESSION_NAME,
-    TARGET_BOT_USERNAME,
-    TARGET_BOT_USERNAMES,
-)
+from config import (API_HASH, API_ID, SESSION_NAME, TARGET_BOT_USERNAME,
+                    TARGET_BOT_USERNAMES)
 from telethon import TelegramClient, events
-from telethon.errors import (
-    ApiIdInvalidError,
-    AuthKeyInvalidError,
-    ChatWriteForbiddenError,
-    FloodWaitError,
-    PeerIdInvalidError,
-    PhoneNumberInvalidError,
-    SessionPasswordNeededError,
-    TimeoutError,
-    UserBannedInChannelError,
-)
+from telethon.errors import (ApiIdInvalidError, AuthKeyInvalidError,
+                             ChatWriteForbiddenError, FloodWaitError,
+                             PeerIdInvalidError, PhoneNumberInvalidError,
+                             SessionPasswordNeededError, TimeoutError,
+                             UserBannedInChannelError)
 from video_processor import VideoProcessor
 
 # Configure logging
@@ -69,31 +58,8 @@ class UserBot:
         """Download and re-upload video using the video processor"""
         return await self.video_processor.download_and_reupload_video(message)
 
-    async def process_bot_link_for_additional_channels(self, bot_link, original_message=None):
-        """Process bot link, generate access link, and post edited message to additional channels"""
-        try:
-            logger.info(f"process_bot_link_for_additional_channels called with bot_link: {bot_link}")
-            logger.info(f"original_message: {original_message}")
-            logger.info(f"original_message type: {type(original_message)}")
-
-            if original_message:
-                logger.info(f"Original message ID: {getattr(original_message, 'id', 'NO_ID')}")
-                logger.info(f"Original message chat ID: {getattr(original_message, 'chat_id', 'NO_CHAT_ID')}")
-
-                # Use new workflow for additional channels
-                access_link = await self.video_processor.process_and_post_to_channels(bot_link, original_message)
-                if access_link:
-                    logger.info(f"Successfully processed bot link and posted to additional channels: {access_link}")
-                else:
-                    logger.warning("Failed to process bot link for additional channels")
-            else:
-                logger.warning("No original message provided for additional channels processing")
-        except Exception as e:
-            logger.error(f"Error in process_bot_link_for_additional_channels: {e}")
-            logger.error(f"Exception details - bot_link: {bot_link}, original_message: {original_message}")
-
-    async def process_bot_link(self, bot_link, original_message=None):
-        """Process bot link and extract videos (original workflow for target channel)"""
+    async def process_bot_link(self, bot_link):
+        """Process bot link and extract videos"""
         logger.info(f"Starting to process bot link: {bot_link}")
         try:
             if bot_link in self.processing_links:
@@ -192,15 +158,20 @@ class UserBot:
                                         logger.info(f"Received response after button click: {new_response.text[:200]}...")
 
                                         # Check if video is forwardable, if not, download and re-upload
-                                        logger.info(f"Checking new_response for video: {new_response}")
-                                        logger.info(f"new_response type: {type(new_response)}")
-                                        logger.info(f"new_response has video: {hasattr(new_response, 'video')}")
-                                        logger.info(f"new_response.video: {getattr(new_response, 'video', 'NO_VIDEO')}")
-
-                                        if new_response and hasattr(new_response, 'video') and new_response.video:
-                                            logger.info(f"Found video in button click response, ID: {getattr(new_response, 'id', 'NO_ID')}")
-                                            # Skip video upload logic - only generate access link from original message
-                                            logger.info("Skipping video upload - will generate access link from original message")
+                                        if hasattr(new_response, 'video') and new_response.video:
+                                            logger.info("Found video in button click response")
+                                            try:
+                                                # Try to forward first
+                                                success = await self.forward_video(new_response)
+                                                if success:
+                                                    logger.info("Successfully forwarded video from button response")
+                                                else:
+                                                    logger.error("Failed to forward video, trying download and re-upload...")
+                                                    # Download and re-upload the video
+                                                    await self.download_and_reupload_video(new_response)
+                                            except Exception as e:
+                                                logger.warning(f"Forward failed, trying download and re-upload: {e}")
+                                                await self.download_and_reupload_video(new_response)
 
                                         await asyncio.sleep(5)  # Increased delay to avoid floodwait
                                     except FloodWaitError as e:
@@ -240,8 +211,7 @@ class UserBot:
                                                     await response.click(button.data)
                                                     new_response = await conv.get_response(timeout=30)
                                                     if hasattr(new_response, 'video') and new_response.video:
-                                                        # Skip video upload logic - only generate access link from original message
-                                                        logger.info("Skipping video upload - will generate access link from original message")
+                                                        await self.forward_video(new_response)
                                                     await asyncio.sleep(5)
                                                 except FloodWaitError as e:
                                                     wait_time = e.seconds
@@ -259,42 +229,47 @@ class UserBot:
                     logger.info("Final fetch: Getting all recent messages from bot for video extraction...")
                     messages = await client.get_messages(bot_username, limit=50)
                     logger.info(f"Retrieved messages from bot (type: {type(messages)})")
-                    logger.info(f"Messages content: {messages}")
-
-                    if not messages:
-                        logger.warning("No messages retrieved from bot")
-                        messages = []
 
                     if messages:
                         video_count = 0
-                        video_messages = []
                         try:
                             message_list = list(messages) if hasattr(messages, '__iter__') else [messages]
                             logger.info(f"Processing {len(message_list)} messages")
-
-                            # First pass: collect all video messages
                             for message in message_list:
-                                logger.info(f"Checking message: {message}")
-                                logger.info(f"Message type: {type(message)}")
-                                logger.info(f"Message has video attr: {hasattr(message, 'video')}")
-                                logger.info(f"Message video value: {getattr(message, 'video', 'NO_VIDEO')}")
-
-                                if message and hasattr(message, 'video') and message.video:
-                                    video_messages.append(message)
+                                if hasattr(message, 'video') and message.video:
                                     logger.info(f"Found video in message ID: {getattr(message, 'id', 'unknown')}")
-                                else:
-                                    logger.warning(f"Message {getattr(message, 'id', 'unknown')} has no video or is None")
-
-                            # Skip video upload logic - only generate access link from original message
-                            logger.info(f"Found {len(video_messages)} videos, but skipping upload - will generate access link from original message")
-                            video_count = len(video_messages)
+                                    try:
+                                        success = await self.forward_video(message)
+                                        if success:
+                                            video_count += 1
+                                            logger.info(f"Successfully forwarded video {video_count}")
+                                        else:
+                                            logger.warning(f"Forward failed, trying download and re-upload for message {getattr(message, 'id', 'unknown')}")
+                                            await self.download_and_reupload_video(message)
+                                            video_count += 1
+                                    except Exception as e:
+                                        logger.warning(f"Forward failed, trying download and re-upload: {e}")
+                                        await self.download_and_reupload_video(message)
+                                        video_count += 1
+                                    await asyncio.sleep(3)
                         except (TypeError, AttributeError) as e:
                             logger.warning(f"Could not iterate messages, trying single message approach: {e}")
                             if hasattr(messages, 'video') and messages.video:
                                 logger.info(f"Found single video message ID: {getattr(messages, 'id', 'unknown')}")
-                                # Skip video upload logic - only generate access link from original message
-                                logger.info("Skipping video upload - will generate access link from original message")
-                                video_count = 1
+                                try:
+                                    success = await self.forward_video(messages)
+                                    if success:
+                                        logger.info("Successfully forwarded single video")
+                                        video_count = 1
+                                    else:
+                                        logger.warning("Forward failed, trying download and re-upload for single video")
+                                        await self.download_and_reupload_video(messages)
+                                        video_count = 1
+                                except Exception as e:
+                                    logger.warning(f"Forward failed, trying download and re-upload: {e}")
+                                    await self.download_and_reupload_video(messages)
+                                    video_count = 1
+                                await asyncio.sleep(3)
 
                         logger.info(f"Total videos processed and forwarded: {video_count}")
                     else:
