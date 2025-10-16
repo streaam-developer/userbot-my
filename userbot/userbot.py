@@ -85,6 +85,7 @@ class UserBot:
             self.processing_links.add(bot_link)
             logger.info(f"Added {bot_link} to processing set. Current processing: {len(self.processing_links)}")
             additional_bot_links = []
+            videos_found = False  # Flag to stop processing once videos are found
             try:
                 # Extract bot username from the link
                 bot_username_match = re.search(r't\.me/([a-zA-Z0-9_]+bot)', bot_link)
@@ -181,13 +182,19 @@ class UserBot:
                                                 success = await self.forward_video(new_response)
                                                 if success:
                                                     logger.info("Successfully forwarded video from button response")
+                                                    videos_found = True
+                                                    break  # Stop processing more buttons once video is found
                                                 else:
                                                     logger.error("Failed to forward video, trying download and re-upload...")
                                                     # Download and re-upload the video
                                                     await self.download_and_reupload_video(new_response)
+                                                    videos_found = True
+                                                    break  # Stop processing more buttons once video is found
                                             except Exception as e:
                                                 logger.warning(f"Forward failed, trying download and re-upload: {e}")
                                                 await self.download_and_reupload_video(new_response)
+                                                videos_found = True
+                                                break  # Stop processing more buttons once video is found
 
                                         await asyncio.sleep(5)  # Increased delay to avoid floodwait
                                     except FloodWaitError as e:
@@ -196,6 +203,10 @@ class UserBot:
                                         await asyncio.sleep(wait_time)
                                     except Exception as e:
                                         logger.error(f"Error clicking button: {e}")
+                                    if videos_found:
+                                        break  # Break out of button row loop
+                                if videos_found:
+                                    break  # Break out of button rows loop
                                 await asyncio.sleep(3)  # Increased delay to avoid floodwait
 
                     # Check for message edits and process updated content only once after channels are joined
@@ -239,12 +250,16 @@ class UserBot:
                         logger.warning(f"Could not check for message edits: {e}")
 
                     # Get latest messages for video extraction only once
-                    messages = await client.get_messages(bot_username, limit=20)
+                    if not videos_found:
+                        messages = await client.get_messages(bot_username, limit=20)
 
-                    # Final fetch of all messages for video extraction
-                    logger.info("Final fetch: Getting all recent messages from bot for video extraction...")
-                    messages = await client.get_messages(bot_username, limit=50)
-                    logger.info(f"Retrieved messages from bot (type: {type(messages)})")
+                        # Final fetch of all messages for video extraction
+                        logger.info("Final fetch: Getting all recent messages from bot for video extraction...")
+                        messages = await client.get_messages(bot_username, limit=50)
+                        logger.info(f"Retrieved messages from bot (type: {type(messages)})")
+                    else:
+                        messages = None
+                        logger.info("Skipping message fetch since videos were already found in button responses")
 
                     if messages:
                         video_count = 0
