@@ -324,12 +324,3 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
-if __name__ == '__main__':
-    asyncio.run(main())            raise
-
-async def main():
-    userbot = UserBot()
-    await userbot.start()
-
-if __name__ == '__main__':
-    asyncio.run(main())
