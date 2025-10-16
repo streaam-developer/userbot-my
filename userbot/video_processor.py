@@ -62,16 +62,13 @@ class VideoProcessor:
                 )
                 logger.info("Successfully re-uploaded video to target channel preserving original format")
 
-                # Generate and send access link
+                # Generate and return access link
                 f_msg_id = uploaded_message.id
                 s_msg_id = f_msg_id  # For single video, f_msg_id and s_msg_id are the same
                 string = f"get-{s_msg_id * abs(FILE_STORE_CHANNEL[0])}"
                 base64_string = await encode(string)
                 link = f"https://t.me/boltarhegabot?start={base64_string}"
-                
-                await self.client.send_message(TARGET_CHANNEL_ID, f"Access Link: {link}")
-                logger.info(f"Successfully sent access link for video {f_msg_id}")
-
+                logger.info(f"Successfully generated access link for video {f_msg_id}")
 
                 # Clean up downloaded file
                 try:
@@ -79,10 +76,10 @@ class VideoProcessor:
                     logger.info("Cleaned up downloaded video file")
                 except Exception as e:
                     logger.warning(f"Could not clean up file: {e}")
-                return True
+                return link
             else:
                 logger.error("Failed to download video")
-                return False
+                return None
         except Exception as e:
             logger.error(f"Error in download and re-upload: {str(e)}")
-            return False
+            return None

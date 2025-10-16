@@ -32,3 +32,11 @@ SESSION_NAME = "userbot_session"
 
 # For link generation
 FILE_STORE_CHANNEL = [TARGET_CHANNEL_ID]
+
+# MongoDB Configuration
+MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://sonukumarkrbbu60:lfkTvljnt25ehTt9@cluster0.2wrbftx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
+MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "userbot_db")
+
+# Feature Toggles
+ENABLE_DB_CHECK = os.getenv("ENABLE_DB_CHECK", "True").lower() == "true"
+ENABLE_DB_UPDATE = os.getenv("ENABLE_DB_UPDATE", "True").lower() == "true"
