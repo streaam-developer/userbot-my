@@ -4,13 +4,7 @@ import re
 
 from bot_handlers import BotHandlers
 from channel_manager import ChannelManager
-from config import (
-    API_HASH,
-    API_ID,
-    SESSION_NAME,
-    TARGET_BOT_USERNAME,
-    TARGET_BOT_USERNAMES,
-)
+from config import API_HASH, API_ID, SESSION_NAME, TARGET_BOT_USERNAME
 from telethon import TelegramClient, events
 from telethon.errors import (
     ApiIdInvalidError,
