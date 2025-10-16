@@ -48,50 +48,13 @@ client = TelegramClient(SESSION_NAME, int(API_ID), API_HASH)
 class UserBot:
     def __init__(self):
         self.processing_links = set()
-        self.message_cache = {}  # Store original messages temporarily
         self.processed_links = set()  # Track links that have been successfully processed
         self.processed_video_file_ids = set()
-        self.link_mapping = {}  # Map original links to new links
 
         # Initialize helper classes
         self.bot_handlers = BotHandlers(self)
         self.video_processor = VideoProcessor(client)
         self.channel_manager = ChannelManager(client)
-        
-    async def cache_original_message(self, event, original_link):
-        """Cache the original message and its link for later use"""
-        logger.info(f"Caching original message for link: {original_link}")
-        self.message_cache[original_link] = {
-            'text': event.text,
-            'message': event,
-            'entities': event.entities
-        }
-
-    async def post_modified_message(self, original_link, new_link):
-        """Post the modified message with the new link to POST_CHANNEL_ID"""
-        try:
-            if original_link in self.message_cache:
-                cached_data = self.message_cache[original_link]
-                original_text = cached_data['text']
-                original_entities = cached_data['entities']
-                
-                # Replace the original link with the new link
-                new_text = original_text.replace(original_link, new_link)
-                
-                # Post the modified message to POST_CHANNEL_ID
-                await client.send_message(
-                    POST_CHANNEL_ID,
-                    new_text,
-                    formatting_entities=original_entities
-                )
-                logger.info(f"Successfully posted modified message to POST_CHANNEL_ID with new link: {new_link}")
-                
-                # Clean up the cache
-                del self.message_cache[original_link]
-            else:
-                logger.warning(f"No cached message found for link: {original_link}")
-        except Exception as e:
-            logger.error(f"Error posting modified message: {str(e)}")
 
     async def join_channel(self, channel_link):
         """Join a channel using the channel manager"""
@@ -321,10 +284,6 @@ class UserBot:
                                         continue
                                     logger.info(f"Found video in message ID: {getattr(message, 'id', 'unknown')}")
                                     try:
-                                        # Update the cache with the message ID that contains the video
-                                        if bot_link in self.message_cache:
-                                            self.message_cache[bot_link]['processing_message_id'] = message.id
-                                            
                                         success = await self.forward_video(message)
                                         if success:
                                             video_count += 1
@@ -398,7 +357,7 @@ class UserBot:
 
     async def start(self):
         """Start the userbot"""
-        @client.on(events.NewMessage(incoming=True))
+        @client.on(events.NewMessage)
         async def handle_new_message(event):
             await self.bot_handlers.handle_new_message(event)
 
