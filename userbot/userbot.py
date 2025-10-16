@@ -220,119 +220,47 @@ class UserBot:
                                         logger.error(f"Error clicking button: {e}")
                                 await asyncio.sleep(3)  # Increased delay to avoid floodwait
 
-                    # Continuously monitor conversation for updates and videos
-                    max_checks = 5  # Maximum number of checks to avoid infinite loop
-                    check_count = 0
-                    last_message_id = response.id if hasattr(response, 'id') else None
+                    # Check for message edits and process updated content only once after channels are joined
                     initial_response_text = response.text if hasattr(response, 'text') else ""
+                    await asyncio.sleep(3)  # Brief wait for potential edits
 
-                    while check_count < max_checks:
-                        logger.info(f"Check {check_count + 1}/{max_checks}: Monitoring conversation for updates...")
+                    # Check if the initial response was edited
+                    try:
+                        current_response = await client.get_messages(bot_username, ids=response.id)
+                        if current_response and hasattr(current_response, 'text'):
+                            current_text = current_response.text if hasattr(current_response, 'text') else ""
+                            if current_text != initial_response_text:
+                                logger.info("Initial response was edited! Processing updated content...")
+                                response = current_response
+                                # Process buttons from edited response
+                                if hasattr(response, 'buttons') and response.buttons:
+                                    logger.info("Processing buttons from edited response...")
+                                    for row_idx, button_row in enumerate(response.buttons):
+                                        for btn_idx, button in enumerate(button_row):
+                                            if hasattr(button, 'url') and button.url:
+                                                if 't.me/' in button.url and ('joinchat' in button.url or '/+' in button.url or '@' in button.url):
+                                                    await self.join_channel(button.url)
+                                                elif 't.me/' in button.url and 'bot' in button.url and any(bot.lower() in button.url.lower() for bot in TARGET_BOT_USERNAMES):
+                                                    additional_bot_links.append(button.url)
+                                                await asyncio.sleep(5)
+                                            elif hasattr(button, 'data'):
+                                                try:
+                                                    await response.click(button.data)
+                                                    new_response = await conv.get_response(timeout=30)
+                                                    if hasattr(new_response, 'video') and new_response.video:
+                                                        await self.forward_video(new_response)
+                                                    await asyncio.sleep(5)
+                                                except FloodWaitError as e:
+                                                    wait_time = e.seconds
+                                                    logger.warning(f"FloodWaitError in edited response: Must wait {wait_time} seconds")
+                                                    await asyncio.sleep(wait_time)
+                                                except Exception as e:
+                                                    logger.error(f"Error clicking button in edited response: {e}")
+                    except Exception as e:
+                        logger.warning(f"Could not check for message edits: {e}")
 
-                        # Wait a bit for potential updates
-                        await asyncio.sleep(5)  # Increased delay to avoid floodwait
-
-                        # Check if the initial response was edited
-                        try:
-                            # Get the specific message to check for edits
-                            current_response = await client.get_messages(bot_username, ids=response.id)
-                            if current_response and hasattr(current_response, 'text'):
-                                current_text = current_response.text if hasattr(current_response, 'text') else ""
-                                if current_text != initial_response_text:
-                                    logger.info("Initial response was edited! Re-processing...")
-                                    response = current_response
-                                    # Re-process the edited response
-                                    if hasattr(response, 'buttons') and response.buttons:
-                                        logger.info("Re-processing buttons from edited response...")
-                                        for row_idx, button_row in enumerate(response.buttons):
-                                            for btn_idx, button in enumerate(button_row):
-                                                if hasattr(button, 'url') and button.url:
-                                                    if 't.me/' in button.url and ('joinchat' in button.url or '/+' in button.url or '@' in button.url):
-                                                        await self.join_channel(button.url)
-                                                    elif 't.me/' in button.url and 'bot' in button.url:
-                                                        additional_bot_links.append(button.url)
-                                                    await asyncio.sleep(5)  # Increased delay to avoid floodwait
-                                                elif hasattr(button, 'data'):
-                                                    try:
-                                                        await response.click(button.data)
-                                                        new_response = await conv.get_response(timeout=30)
-                                                        if hasattr(new_response, 'video') and new_response.video:
-                                                            await self.forward_video(new_response)
-                                                        await asyncio.sleep(5)  # Increased delay to avoid floodwait
-                                                    except FloodWaitError as e:
-                                                        wait_time = e.seconds
-                                                        logger.warning(f"FloodWaitError in edited response: Must wait {wait_time} seconds")
-                                                        await asyncio.sleep(wait_time)
-                                                    except Exception as e:
-                                                        logger.error(f"Error clicking button in edited response: {e}")
-                        except Exception as e:
-                            logger.warning(f"Could not check for message edits: {e}")
-
-                        # Get latest messages from bot
-                        messages = await client.get_messages(bot_username, limit=10)
-                        if messages:
-                            new_messages = []
-                            for msg in messages:
-                                if hasattr(msg, 'id') and (last_message_id is None or msg.id > last_message_id):
-                                    new_messages.append(msg)
-                                    if hasattr(msg, 'id'):
-                                        last_message_id = max(last_message_id or 0, msg.id)
-
-                            if new_messages:
-                                logger.info(f"Found {len(new_messages)} new messages")
-                                for msg in new_messages:
-                                    # Process channel joins if message requires it
-                                    if hasattr(msg, 'text') and ("join" in msg.text.lower() or "channel" in msg.text.lower()):
-                                        logger.info("New message requires channel join, extracting channel links...")
-                                        channel_links = re.findall(r'https://t\.me/[^\s\n]+', msg.text)
-                                        username_links = re.findall(r'@([a-zA-Z0-9_]+)', msg.text)
-                                        for username in username_links:
-                                            if username not in ['join', 'channel', 'the', 'to', 'and', 'or']:
-                                                channel_links.append(f"https://t.me/{username}")
-
-                                        for channel_link in channel_links:
-                                            if bot_username.lower() in channel_link.lower():
-                                                continue
-                                            logger.info(f"Attempting to join channel from update: {channel_link}")
-                                            await self.join_channel(channel_link)
-                                            await asyncio.sleep(5)  # Increased delay to avoid floodwait
-
-                                    # Process buttons in new messages
-                                    if hasattr(msg, 'buttons') and msg.buttons:
-                                        logger.info("Found buttons in new message, clicking them...")
-                                        for row_idx, button_row in enumerate(msg.buttons):
-                                            for btn_idx, button in enumerate(button_row):
-                                                if hasattr(button, 'url') and button.url:
-                                                    if 't.me/' in button.url and ('joinchat' in button.url or '/+' in button.url or '@' in button.url):
-                                                        await self.join_channel(button.url)
-                                                    elif 't.me/' in button.url and 'bot' in button.url:
-                                                        additional_bot_links.append(button.url)
-                                                    await asyncio.sleep(2)
-                                                elif hasattr(button, 'data'):
-                                                    try:
-                                                        await msg.click(button.data)
-                                                        new_response = await conv.get_response(timeout=30)
-                                                        if hasattr(new_response, 'video') and new_response.video:
-                                                            await self.forward_video(new_response)
-                                                        await asyncio.sleep(5)  # Increased delay to avoid floodwait
-                                                    except FloodWaitError as e:
-                                                        wait_time = e.seconds
-                                                        logger.warning(f"FloodWaitError in update: Must wait {wait_time} seconds")
-                                                        await asyncio.sleep(wait_time)
-                                                    except Exception as e:
-                                                        logger.error(f"Error clicking button in update: {e}")
-
-                                    # Check for videos in new messages
-                                    if hasattr(msg, 'video') and msg.video:
-                                        logger.info(f"Found video in new message ID: {msg.id}")
-                                        await self.forward_video(msg)
-                                        await asyncio.sleep(3)  # Increased delay to avoid floodwait
-                            else:
-                                logger.info("No new messages found in this check")
-                                check_count += 1  # Only increment if no new messages
-                        else:
-                            logger.warning("No messages retrieved in update check")
-                            check_count += 1
+                    # Get latest messages for video extraction only once
+                    messages = await client.get_messages(bot_username, limit=20)
 
                     # Final fetch of all messages for video extraction
                     logger.info("Final fetch: Getting all recent messages from bot for video extraction...")
@@ -410,14 +338,14 @@ class UserBot:
                         await self.process_bot_link(link)
                 elif links:
                     logger.info(f"Message contains {len(links)} Telegram links (no bot username specified)")
-                    # Process all Telegram links found, regardless of bot username
+                    # Process only links that contain target bot usernames
                     for link in links:
-                        # Check if it's a bot link (contains any target bot username in URL or is a direct bot link)
-                        if any(bot.lower() in link.lower() for bot in TARGET_BOT_USERNAMES) or 'bot' in link.lower():
-                            logger.info(f"Processing bot link: {link}")
+                        # Check if it's a bot link that contains any target bot username
+                        if any(bot.lower() in link.lower() for bot in TARGET_BOT_USERNAMES):
+                            logger.info(f"Processing target bot link: {link}")
                             await self.process_bot_link(link)
                         else:
-                            logger.info(f"Skipping non-bot link: {link}")
+                            logger.info(f"Skipping non-target link: {link}")
                 else:
                     logger.debug("Message does not contain target bot username or links, ignoring")
             except Exception as e:
