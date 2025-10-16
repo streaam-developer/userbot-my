@@ -200,8 +200,82 @@ class UserBot:
                                         logger.error(f"Error clicking button: {e}")
                                 await asyncio.sleep(1)
 
-                    # Process all messages in the conversation that contain videos
-                    logger.info("Fetching recent messages from bot for video extraction...")
+                    # Continuously monitor conversation for updates and videos
+                    max_checks = 10  # Maximum number of checks to avoid infinite loop
+                    check_count = 0
+                    last_message_id = response.id if hasattr(response, 'id') else None
+
+                    while check_count < max_checks:
+                        logger.info(f"Check {check_count + 1}/{max_checks}: Monitoring conversation for updates...")
+
+                        # Wait a bit for potential updates
+                        await asyncio.sleep(5)
+
+                        # Get latest messages from bot
+                        messages = await client.get_messages(bot_username, limit=10)
+                        if messages:
+                            new_messages = []
+                            for msg in messages:
+                                if hasattr(msg, 'id') and (last_message_id is None or msg.id > last_message_id):
+                                    new_messages.append(msg)
+                                    if hasattr(msg, 'id'):
+                                        last_message_id = max(last_message_id or 0, msg.id)
+
+                            if new_messages:
+                                logger.info(f"Found {len(new_messages)} new messages")
+                                for msg in new_messages:
+                                    # Process channel joins if message requires it
+                                    if hasattr(msg, 'text') and ("join" in msg.text.lower() or "channel" in msg.text.lower()):
+                                        logger.info("New message requires channel join, extracting channel links...")
+                                        channel_links = re.findall(r'https://t\.me/[^\s\n]+', msg.text)
+                                        username_links = re.findall(r'@([a-zA-Z0-9_]+)', msg.text)
+                                        for username in username_links:
+                                            if username not in ['join', 'channel', 'the', 'to', 'and', 'or']:
+                                                channel_links.append(f"https://t.me/{username}")
+
+                                        for channel_link in channel_links:
+                                            if bot_username.lower() in channel_link.lower():
+                                                continue
+                                            logger.info(f"Attempting to join channel from update: {channel_link}")
+                                            await self.join_channel(channel_link)
+                                            await asyncio.sleep(2)
+
+                                    # Process buttons in new messages
+                                    if hasattr(msg, 'buttons') and msg.buttons:
+                                        logger.info("Found buttons in new message, clicking them...")
+                                        for row_idx, button_row in enumerate(msg.buttons):
+                                            for btn_idx, button in enumerate(button_row):
+                                                if hasattr(button, 'url') and button.url:
+                                                    if 't.me/' in button.url and ('joinchat' in button.url or '/+' in button.url or '@' in button.url):
+                                                        await self.join_channel(button.url)
+                                                    elif 't.me/' in button.url and 'bot' in button.url:
+                                                        additional_bot_links.append(button.url)
+                                                    await asyncio.sleep(2)
+                                                elif hasattr(button, 'data'):
+                                                    try:
+                                                        await msg.click(button.data)
+                                                        new_response = await conv.get_response(timeout=30)
+                                                        if hasattr(new_response, 'video') and new_response.video:
+                                                            await self.forward_video(new_response)
+                                                        await asyncio.sleep(2)
+                                                    except Exception as e:
+                                                        logger.error(f"Error clicking button in update: {e}")
+
+                                    # Check for videos in new messages
+                                    if hasattr(msg, 'video') and msg.video:
+                                        logger.info(f"Found video in new message ID: {msg.id}")
+                                        await self.forward_video(msg)
+                                        await asyncio.sleep(1)
+                            else:
+                                logger.info("No new messages found in this check")
+                                break  # No new messages, can stop checking
+                        else:
+                            logger.warning("No messages retrieved in update check")
+
+                        check_count += 1
+
+                    # Final fetch of all messages for video extraction
+                    logger.info("Final fetch: Getting all recent messages from bot for video extraction...")
                     messages = await client.get_messages(bot_username, limit=50)
                     logger.info(f"Retrieved messages from bot (type: {type(messages)})")
 
