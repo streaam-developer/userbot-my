@@ -7,25 +7,22 @@ import logging
 logger = logging.getLogger(__name__)
 
 async def encode(string):
-    """Encode string to base64 using urlsafe method (matching your existing code)"""
+    """Encode string to base64 using urlsafe method (EXACTLY like your commands.py)"""
     try:
-        # Use urlsafe_b64encode to match your existing code style
+        # Use urlsafe_b64encode exactly like in your commands.py
         encoded_bytes = base64.urlsafe_b64encode(string.encode('utf-8'))
-        return encoded_bytes.decode('utf-8').rstrip('=')  # Remove padding like in your code
+        return encoded_bytes.decode('utf-8')
     except Exception as e:
         logger.error(f"Error encoding text: {e}")
         return None
 
 def decode(base64_string):
-    """Decode base64 string"""
+    """Decode base64 string EXACTLY like your commands.py"""
     try:
-        # Add padding back if needed
-        missing_padding = len(base64_string) % 4
-        if missing_padding:
-            base64_string += '=' * (4 - missing_padding)
-
-        decoded_bytes = base64.urlsafe_b64decode(base64_string.encode('utf-8'))
-        return decoded_bytes.decode('utf-8')
+        # Add padding EXACTLY like in your commands.py: data + "=" * (-len(data) % 4)
+        padded_string = base64_string + "=" * (-len(base64_string) % 4)
+        decoded_bytes = base64.urlsafe_b64decode(padded_string.encode('utf-8'))
+        return decoded_bytes.decode('ascii')
     except Exception as e:
         logger.error(f"Error decoding base64: {e}")
         return None

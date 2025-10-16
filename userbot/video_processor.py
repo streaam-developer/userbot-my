@@ -235,11 +235,11 @@ class VideoProcessor:
             from info import FILE_STORE_CHANNEL
 
             if is_batch and start_id and end_id:
-                # For batch links (multiple videos)
-                string = f"get-{start_id * abs(int(FILE_STORE_CHANNEL[0]))}-{end_id * abs(int(FILE_STORE_CHANNEL[0]))}"
+                # For batch links (multiple videos) - exactly like your commands.py
+                string = f"get-{start_id * abs(FILE_STORE_CHANNEL[0])}-{end_id * abs(FILE_STORE_CHANNEL[0])}"
             else:
-                # For single video links
-                string = f"get-{message_id * abs(int(FILE_STORE_CHANNEL[0]))}"
+                # For single video links - exactly like your commands.py
+                string = f"get-{message_id * abs(FILE_STORE_CHANNEL[0])}"
 
             base64_string = await encode(string)
             if not base64_string:
@@ -289,23 +289,35 @@ class VideoProcessor:
                     caption=caption,
                     **upload_kwargs
                 )
+
+                # Check if upload was successful and message has ID
+                if not uploaded_message or not hasattr(uploaded_message, 'id'):
+                    logger.error("Failed to upload video or uploaded message has no ID")
+                    return False
+
                 logger.info("Successfully re-uploaded video to target channel preserving original format")
 
-                # Generate access link for single video
-                access_link = await self.generate_access_link(uploaded_message.id, is_batch=False)
-                if access_link:
-                    logger.info(f"Generated access link: {access_link}")
+                # Generate access link for single video (only if message has valid ID)
+                access_link = None
+                if hasattr(uploaded_message, 'id') and uploaded_message.id:
+                    access_link = await self.generate_access_link(uploaded_message.id, is_batch=False)
+                    if access_link:
+                        logger.info(f"Generated access link: {access_link}")
+                    else:
+                        logger.error("Failed to generate access link")
+                else:
+                    logger.error("Uploaded message has no valid ID for access link generation")
 
-                    # Track the original post and access link if original message is provided
-                    if original_message:
-                        self.track_original_post(original_message, uploaded_message.id, access_link)
+                # Track the original post and access link if original message is provided
+                if original_message and access_link:
+                    self.track_original_post(original_message, uploaded_message.id, access_link)
 
-                        # Replace original bot link with access link
-                        await self.replace_original_link(original_message, access_link)
+                    # Replace original bot link with access link
+                    await self.replace_original_link(original_message, access_link)
 
-                        # Post to additional channels
-                        video_info = f"Duration: {upload_kwargs.get('duration', 'Unknown')}" if 'duration' in upload_kwargs else None
-                        await self.post_to_additional_channels(access_link, video_info)
+                    # Post to additional channels
+                    video_info = f"Duration: {upload_kwargs.get('duration', 'Unknown')}" if 'duration' in upload_kwargs else None
+                    await self.post_to_additional_channels(access_link, video_info)
 
                 # Clean up downloaded file
                 try:
