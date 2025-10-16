@@ -340,8 +340,8 @@ class UserBot:
                     logger.info(f"Message contains {len(links)} Telegram links (no bot username specified)")
                     # Process only links that contain target bot usernames
                     for link in links:
-                        # Check if it's a bot link that contains any target bot username
-                        if any(bot.lower() in link.lower() for bot in TARGET_BOT_USERNAMES):
+                        # Check if it's a bot link that contains any target bot username (without @)
+                        if any(bot.strip('@').lower() in link.lower() for bot in TARGET_BOT_USERNAMES):
                             logger.info(f"Processing target bot link: {link}")
                             await self.process_bot_link(link)
                         else:
