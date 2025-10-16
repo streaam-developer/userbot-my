@@ -7,7 +7,6 @@ import sys
 # Add the current directory to Python path so imports work when running as script
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from config import API_HASH, API_ID, SESSION_NAME, TARGET_BOT_USERNAME
 from telethon import TelegramClient, events
 from telethon.errors import (
     ApiIdInvalidError,
@@ -24,6 +23,7 @@ from video_processor import VideoProcessor
 
 from .bot_handlers import *
 from .channel_manager import *
+from .config import API_HASH, API_ID, SESSION_NAME, TARGET_BOT_USERNAME
 
 # Configure logging
 logging.basicConfig(
