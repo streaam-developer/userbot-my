@@ -8,7 +8,8 @@ from telethon import TelegramClient, events
 from telethon.errors import (ApiIdInvalidError, AuthKeyInvalidError,
                              ChannelPrivateError, ChatWriteForbiddenError,
                              FloodWaitError, InviteHashInvalidError,
-                             PeerIdInvalidError, PhoneNumberInvalidError,
+                             InviteHashExpiredError, PeerIdInvalidError,
+                             PhoneNumberInvalidError,
                              SessionPasswordNeededError, TimeoutError,
                              UserAlreadyParticipantError,
                              UserBannedInChannelError)
@@ -46,7 +47,7 @@ class UserBot:
         """Join a channel with error handling and retry mechanism"""
         try:
             if 'joinchat' in channel_link or '/+' in channel_link:
-                invite_hash = channel_link.split('/')[-1]
+                invite_hash = channel_link.split('/')[-1].lstrip('+')
                 await client(ImportChatInviteRequest(invite_hash))
             else:
                 channel_username = channel_link.split('/')[-1]
@@ -56,7 +57,7 @@ class UserBot:
         except UserAlreadyParticipantError:
             logger.info(f"Already a member of {channel_link}")
             return True
-        except (ChannelPrivateError, InviteHashInvalidError) as e:
+        except (ChannelPrivateError, InviteHashInvalidError, InviteHashExpiredError) as e:
             logger.error(f"Cannot join channel {channel_link}: {str(e)}")
             return False
         except FloodWaitError as e:
