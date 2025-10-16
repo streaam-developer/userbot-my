@@ -86,22 +86,12 @@ class UserBot:
             return False
 
     async def forward_video(self, message, retry_count=0):
-        """Forward video to target channel with error handling"""
+        """Forward video to target channel with error handling - always use download and re-upload to avoid forward tags"""
         try:
-            await message.forward_to(TARGET_CHANNEL_ID)
-            logger.info(f"Successfully forwarded video from message ID: {message.id}")
-            return True
-        except FloodWaitError as e:
-            if retry_count < self.max_retries:
-                wait_time = e.seconds
-                logger.warning(f"FloodWaitError: Waiting {wait_time} seconds before retry")
-                await asyncio.sleep(wait_time)
-                return await self.forward_video(message, retry_count + 1)
-            else:
-                logger.error("Max retries reached for forwarding video")
-                return False
+            # Always download and re-upload instead of forwarding to avoid forward tags
+            return await self.download_and_reupload_video(message)
         except Exception as e:
-            logger.error(f"Error forwarding video: {str(e)}")
+            logger.error(f"Error in video processing: {str(e)}")
             return False
 
     async def download_and_reupload_video(self, message):
