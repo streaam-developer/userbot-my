@@ -94,7 +94,7 @@ class UserBot:
                     bot_username = TARGET_BOT_USERNAME
                 else:
                     bot_username = bot_username_match.group(1)
-
+#
                 # Extract the start parameter or any bot command from the link
                 if 'start=' in bot_link:
                     start_param = bot_link.split('start=')[-1]
