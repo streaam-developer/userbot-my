@@ -291,22 +291,37 @@ class VideoProcessor:
                 )
 
                 # Check if upload was successful and message has ID
-                if not uploaded_message or not hasattr(uploaded_message, 'id'):
-                    logger.error("Failed to upload video or uploaded message has no ID")
+                if not uploaded_message:
+                    logger.error("Uploaded message is None - upload failed completely")
                     return False
 
-                logger.info("Successfully re-uploaded video to target channel preserving original format")
+                if not hasattr(uploaded_message, 'id'):
+                    logger.error(f"Uploaded message has no 'id' attribute. Type: {type(uploaded_message)}")
+                    logger.error(f"Uploaded message content: {uploaded_message}")
+                    return False
+
+                if uploaded_message.id is None:
+                    logger.error("Uploaded message ID is None")
+                    return False
+
+                logger.info(f"Successfully re-uploaded video with ID: {uploaded_message.id}")
 
                 # Generate access link for single video (only if message has valid ID)
                 access_link = None
-                if hasattr(uploaded_message, 'id') and uploaded_message.id:
+                logger.info(f"Checking uploaded message ID: {getattr(uploaded_message, 'id', 'NO_ID_ATTR')}")
+
+                if uploaded_message and hasattr(uploaded_message, 'id') and uploaded_message.id:
+                    logger.info(f"Generating access link for message ID: {uploaded_message.id}")
                     access_link = await self.generate_access_link(uploaded_message.id, is_batch=False)
                     if access_link:
                         logger.info(f"Generated access link: {access_link}")
                     else:
-                        logger.error("Failed to generate access link")
+                        logger.error("Failed to generate access link - encode returned None")
                 else:
-                    logger.error("Uploaded message has no valid ID for access link generation")
+                    logger.error(f"Cannot generate access link - uploaded_message: {uploaded_message}")
+                    logger.error(f"uploaded_message type: {type(uploaded_message)}")
+                    logger.error(f"hasattr(uploaded_message, 'id'): {hasattr(uploaded_message, 'id') if uploaded_message else 'N/A'}")
+                    logger.error(f"uploaded_message.id: {uploaded_message.id if uploaded_message and hasattr(uploaded_message, 'id') else 'N/A'}")
 
                 # Track the original post and access link if original message is provided
                 if original_message and access_link:
