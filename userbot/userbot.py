@@ -1,20 +1,11 @@
 import asyncio
 import logging
-import re
 
-from config import (API_HASH, API_ID, SESSION_NAME, TARGET_BOT_USERNAME,
-                    TARGET_BOT_USERNAMES, TARGET_CHANNEL_ID)
+from config import API_HASH, API_ID, SESSION_NAME
 from telethon import TelegramClient, events
 from telethon.errors import (ApiIdInvalidError, AuthKeyInvalidError,
-                             ChannelPrivateError, ChatWriteForbiddenError,
-                             FloodWaitError, InviteHashExpiredError,
-                             InviteHashInvalidError, PeerIdInvalidError,
                              PhoneNumberInvalidError,
-                             SessionPasswordNeededError, TimeoutError,
-                             UserAlreadyParticipantError,
-                             UserBannedInChannelError)
-from telethon.tl.functions.channels import JoinChannelRequest
-from telethon.tl.functions.messages import ImportChatInviteRequest
+                             SessionPasswordNeededError)
 
 # Configure logging
 logging.basicConfig(
@@ -43,106 +34,22 @@ class UserBot:
         self.max_retries = 3
         self.retry_delay = 60  # seconds
 
+        # Initialize helper classes
+        self.bot_handlers = BotHandlers(self)
+        self.video_processor = VideoProcessor(client)
+        self.channel_manager = ChannelManager(client)
+
     async def join_channel(self, channel_link):
-        """Join a channel with error handling and retry mechanism"""
-        try:
-            # Extract channel identifier
-            if 'joinchat' in channel_link or '/+' in channel_link:
-                channel_id = channel_link.split('/')[-1].lstrip('+')
-                is_private = True
-            else:
-                channel_id = channel_link.split('/')[-1]
-                is_private = False
-
-            # Check if already joined by trying to get channel info
-            try:
-                if is_private:
-                    # For private channels, we can't easily check without joining
-                    await client(ImportChatInviteRequest(channel_id))
-                else:
-                    # For public channels, check if we're already a member
-                    channel = await client.get_entity(channel_id)
-                    if hasattr(channel, 'left') and channel.left:
-                        await client(JoinChannelRequest(channel_id))
-                    else:
-                        logger.info(f"Already a member of {channel_link}")
-                        return True
-            except UserAlreadyParticipantError:
-                logger.info(f"Already a member of {channel_link}")
-                return True
-
-            logger.info(f"Successfully joined channel: {channel_link}")
-            return True
-        except (ChannelPrivateError, InviteHashInvalidError, InviteHashExpiredError) as e:
-            logger.error(f"Cannot join channel {channel_link}: {str(e)}")
-            return False
-        except FloodWaitError as e:
-            wait_time = e.seconds
-            logger.warning(f"FloodWaitError: Must wait {wait_time} seconds")
-            await asyncio.sleep(wait_time)
-            return await self.join_channel(channel_link)
-        except Exception as e:
-            logger.error(f"Unexpected error joining channel {channel_link}: {str(e)}")
-            return False
+        """Join a channel using the channel manager"""
+        return await self.channel_manager.join_channel(channel_link)
 
     async def forward_video(self, message, retry_count=0):
-        """Forward video to target channel with error handling - always use download and re-upload to avoid forward tags"""
-        try:
-            # Always download and re-upload instead of forwarding to avoid forward tags
-            return await self.download_and_reupload_video(message)
-        except Exception as e:
-            logger.error(f"Error in video processing: {str(e)}")
-            return False
+        """Forward video using the video processor"""
+        return await self.video_processor.forward_video(message, retry_count)
 
     async def download_and_reupload_video(self, message):
-        """Download video and re-upload to target channel preserving original format"""
-        try:
-            logger.info("Downloading video for re-upload...")
-            # Download the video with original attributes
-            video_path = await message.download_media()
-            if video_path:
-                logger.info(f"Downloaded video to: {video_path}")
-
-                # Prepare upload attributes to preserve original video properties
-                upload_kwargs = {}
-
-                # Copy video attributes if available
-                if hasattr(message, 'video') and message.video:
-                    video = message.video
-                    if hasattr(video, 'duration'):
-                        upload_kwargs['duration'] = video.duration
-                    if hasattr(video, 'width') and hasattr(video, 'height'):
-                        upload_kwargs['width'] = video.width
-                        upload_kwargs['height'] = video.height
-                    if hasattr(video, 'supports_streaming'):
-                        upload_kwargs['supports_streaming'] = video.supports_streaming
-
-                # Use original caption if available, otherwise no caption
-                caption = getattr(message, 'text', None) or getattr(message, 'caption', None) or ""
-
-                # Upload to target channel preserving original format
-                await client.send_file(
-                    TARGET_CHANNEL_ID,
-                    video_path,
-                    caption=caption,
-                    **upload_kwargs
-                )
-                logger.info("Successfully re-uploaded video to target channel preserving original format")
-
-                # Clean up downloaded file
-                import os
-                try:
-                    os.remove(video_path)
-                    logger.info("Cleaned up downloaded video file")
-                except Exception as e:
-                    logger.warning(f"Could not clean up file: {e}")
-                return True
-            else:
-                logger.error("Failed to download video")
-                return False
-        except Exception as e:
-            logger.error(f"Error in download and re-upload: {str(e)}")
-            return False
+        """Download and re-upload video using the video processor"""
+        return await self.video_processor.download_and_reupload_video(message)
 
     async def process_bot_link(self, bot_link):
         """Process bot link and extract videos"""
@@ -387,33 +294,7 @@ class UserBot:
         """Start the userbot"""
         @client.on(events.NewMessage)
         async def handle_new_message(event):
-            try:
-                logger.info(f"Received new message: {event.text[:100]}...")
-                # Check if message contains any target bot username (with or without @) OR any Telegram link
-                contains_bot = any(bot.strip('@').lower() in event.text.lower() for bot in TARGET_BOT_USERNAMES)
-                links = re.findall(r'https://t\.me/[^\s]+', event.text)
-
-                if contains_bot:
-                    logger.info(f"Message contains one of target bot usernames: {TARGET_BOT_USERNAMES}")
-                    logger.info(f"Found {len(links)} Telegram links in message: {links}")
-                    for link in links:
-                        logger.info(f"Processing link: {link}")
-                        await self.process_bot_link(link)
-                elif links:
-                    logger.info(f"Message contains {len(links)} Telegram links (no bot username specified)")
-                    # Process only links that contain target bot usernames
-                    for link in links:
-                        # Check if it's a bot link that contains any target bot username (without @)
-                        if any(bot.strip('@').lower() in link.lower() for bot in TARGET_BOT_USERNAMES):
-                            logger.info(f"Processing target bot link: {link}")
-                            await self.process_bot_link(link)
-                        else:
-                            logger.info(f"Skipping non-target link: {link}")
-                else:
-                    logger.debug("Message does not contain target bot username or links, ignoring")
-            except Exception as e:
-                logger.error(f"Error in message handler: {str(e)}")
-                logger.error(f"Message that caused error: {event.text}")
+            await self.bot_handlers.handle_new_message(event)
 
         try:
             logger.info("Starting userbot...")
@@ -434,5 +315,7 @@ async def main():
     userbot = UserBot()
     await userbot.start()
 
+if __name__ == '__main__':
+    asyncio.run(main())
 if __name__ == '__main__':
     asyncio.run(main())
