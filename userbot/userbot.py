@@ -357,7 +357,7 @@ class UserBot:
 
     async def start(self):
         """Start the userbot"""
-        @client.on(events.NewMessage)
+        @client.on(events.NewMessage(incoming=True))
         async def handle_new_message(event):
             await self.bot_handlers.handle_new_message(event)
 
