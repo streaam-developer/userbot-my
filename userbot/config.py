@@ -11,10 +11,13 @@ API_HASH = os.getenv('API_HASH')
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 
 # Target Channel ID where videos will be forwarded
-TARGET_CHANNEL_ID = int(os.getenv('TARGET_CHANNEL_ID'))
+target_channel_id = os.getenv('TARGET_CHANNEL_ID')
+if not target_channel_id:
+    raise ValueError("TARGET_CHANNEL_ID must be set in environment variables")
+TARGET_CHANNEL_ID = int(target_channel_id)
 
-# Bot username to monitor
-TARGET_BOT_USERNAME = "@boltarhegabot"
+# Bot username to monitor (configurable via env)
+TARGET_BOT_USERNAME = os.getenv('TARGET_BOT_USERNAME', '@boltarhegabot')
 
 # Session name
 SESSION_NAME = "userbot_session"

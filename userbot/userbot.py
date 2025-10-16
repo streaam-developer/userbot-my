@@ -5,9 +5,13 @@ import re
 from config import (API_HASH, API_ID, SESSION_NAME, TARGET_BOT_USERNAME,
                     TARGET_CHANNEL_ID)
 from telethon import TelegramClient, events
-from telethon.errors import (ChannelPrivateError, FloodWaitError,
-                             InviteHashInvalidError,
-                             UserAlreadyParticipantError)
+from telethon.errors import (ApiIdInvalidError, AuthKeyInvalidError,
+                             ChannelPrivateError, ChatWriteForbiddenError,
+                             FloodWaitError, InviteHashInvalidError,
+                             PeerIdInvalidError, PhoneNumberInvalidError,
+                             SessionPasswordNeededError, TimeoutError,
+                             UserAlreadyParticipantError,
+                             UserBannedInChannelError)
 from telethon.tl.functions.channels import JoinChannelRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
 
@@ -19,8 +23,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize client
-client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
+# Initialize client with proper type checking
+if not API_ID or not API_HASH:
+    raise ValueError("API_ID and API_HASH must be set in environment variables")
+client = TelegramClient(SESSION_NAME, int(API_ID), API_HASH)
 
 class UserBot:
     def __init__(self):
@@ -99,15 +105,36 @@ class UserBot:
                     
                     # Process all messages in the conversation that contain videos
                     async for message in conv.get_messages():
-                        if message.video:
-                            await self.forward_video(message)
-                            await asyncio.sleep(1)  # Avoid flood
+                    # Get the last few messages from the conversation
+                    messages = await client.get_messages(TARGET_BOT_USERNAME, limit=50)  # Get last 50 messages
+                    if messages:
+                        # Process messages (handle both single message and list)
+                        try:
+                            for message in messages:
+                                if hasattr(message, 'video') and message.video:
+                                    await self.forward_video(message)
+                                    await asyncio.sleep(1)  # Avoid flood
+                        except TypeError:
+                            # Single message
+                            if hasattr(messages, 'video') and messages.video:
+                                await self.forward_video(messages)
+                                await asyncio.sleep(1)  # Avoid flood
             
             finally:
                 self.processing_links.remove(bot_link)
                 
+        except (AuthKeyInvalidError, SessionPasswordNeededError,
+                PhoneNumberInvalidError, ApiIdInvalidError) as e:
+            logger.error(f"Authentication error processing bot link {bot_link}: {str(e)}")
+            raise  # Critical error, stop the bot
+        except (FloodWaitError, TimeoutError) as e:
+            logger.warning(f"Temporary error processing bot link {bot_link}: {str(e)}")
+            # Could implement retry logic here
+        except (PeerIdInvalidError, ChatWriteForbiddenError,
+                UserBannedInChannelError) as e:
+            logger.error(f"Access error processing bot link {bot_link}: {str(e)}")
         except Exception as e:
-            logger.error(f"Error processing bot link {bot_link}: {str(e)}")
+            logger.error(f"Unexpected error processing bot link {bot_link}: {str(e)}")
 
     async def start(self):
         """Start the userbot"""
@@ -124,7 +151,12 @@ class UserBot:
         try:
             logger.info("Starting userbot...")
             await client.start()
+            logger.info("Userbot started successfully")
             await client.run_until_disconnected()
+        except (AuthKeyInvalidError, SessionPasswordNeededError,
+                PhoneNumberInvalidError, ApiIdInvalidError) as e:
+            logger.error(f"Authentication error starting userbot: {str(e)}")
+            raise
         except Exception as e:
             logger.error(f"Critical error in userbot: {str(e)}")
             raise
@@ -134,4 +166,4 @@ async def main():
     await userbot.start()
 
 if __name__ == '__main__':
-    client.loop.run_until_complete(main())    client.loop.run_until_complete(main())
+    asyncio.run(main())
