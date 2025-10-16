@@ -46,15 +46,16 @@ if not API_ID or not API_HASH:
 client = TelegramClient(SESSION_NAME, int(API_ID), API_HASH)
 
 class UserBot:
-    def __init__(self):
+    def __init__(self, telegram_client):
+        self.client = telegram_client
         self.processing_links = set()
         self.processed_links = set()  # Track links that have been successfully processed
         self.processed_video_file_ids = set()
 
         # Initialize helper classes
         self.bot_handlers = BotHandlers(self)
-        self.video_processor = VideoProcessor(client)
-        self.channel_manager = ChannelManager(client)
+        self.video_processor = VideoProcessor(self.client)
+        self.channel_manager = ChannelManager(self.client)
 
     async def join_channel(self, channel_link):
         """Join a channel using the channel manager"""
@@ -381,7 +382,7 @@ class UserBot:
             raise
 
 async def main():
-    userbot = UserBot()
+    userbot = UserBot(client)
     await userbot.start()
 
 if __name__ == '__main__':
