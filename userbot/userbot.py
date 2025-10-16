@@ -3,7 +3,7 @@ import logging
 import re
 
 from config import (API_HASH, API_ID, SESSION_NAME, TARGET_BOT_USERNAME,
-                    TARGET_CHANNEL_ID)
+                    TARGET_BOT_USERNAMES, TARGET_CHANNEL_ID)
 from telethon import TelegramClient, events
 from telethon.errors import (ApiIdInvalidError, AuthKeyInvalidError,
                              ChannelPrivateError, ChatWriteForbiddenError,
