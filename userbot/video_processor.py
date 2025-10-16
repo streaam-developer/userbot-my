@@ -3,10 +3,9 @@ Video processing and upload functions
 """
 import logging
 import os
-import random
 import base64
 
-from config import TARGET_CHANNEL_ID, FILE_STORE_CHANNEL, BOT_USERNAMES
+from config import TARGET_CHANNEL_ID, FILE_STORE_CHANNEL
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +67,7 @@ class VideoProcessor:
                 s_msg_id = f_msg_id  # For single video, f_msg_id and s_msg_id are the same
                 string = f"get-{f_msg_id * abs(FILE_STORE_CHANNEL[0])}-{s_msg_id * abs(FILE_STORE_CHANNEL[0])}"
                 base64_string = await encode(string)
-                link = f"https://t.me/{random.choice(BOT_USERNAMES).strip('@')}?start={base64_string}"
+                link = f"https://t.me/boltarhegabot?start={base64_string}"
                 
                 await self.client.send_message(TARGET_CHANNEL_ID, f"Access Link: {link}")
                 logger.info(f"Successfully sent access link for video {f_msg_id}")

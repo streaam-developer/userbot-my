@@ -18,7 +18,7 @@ if not BOT_TOKEN:
 
 
 # Target Channel ID where videos will be forwarded
-target_channel_id = os.getenv('TARGET_CHANNEL_ID', "-1003128443058")
+target_channel_id = os.getenv('TARGET_CHANNEL_ID', "-1002818242381")
 if not target_channel_id:
     raise ValueError("TARGET_CHANNEL_ID must be set in environment variables")
 TARGET_CHANNEL_ID = int(target_channel_id)
@@ -32,4 +32,3 @@ SESSION_NAME = "userbot_session"
 
 # For link generation
 FILE_STORE_CHANNEL = [TARGET_CHANNEL_ID]
-BOT_USERNAMES = "@boltarhegabot"
