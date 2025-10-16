@@ -6,12 +6,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Telegram API Credentials
-API_ID = os.getenv('API_ID')
-API_HASH = os.getenv('API_HASH')
-BOT_TOKEN = os.getenv('BOT_TOKEN')
+API_ID = os.getenv('API_ID', "904789")
+if not API_ID:
+    raise ValueError("API_ID must be set in environment variables")
+API_HASH = os.getenv('API_HASH', "2262ef67ced426b9eea57867b11666a1")
+if not API_HASH:
+    raise ValueError("API_HASH must be set in environment variables")
+BOT_TOKEN = os.getenv('BOT_TOKEN', "7932992967:AAEEImgpNBjIs0bpgjCbAuQ6J8at9ynB_8I")
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN must be set in environment variables")
+
 
 # Target Channel ID where videos will be forwarded
-target_channel_id = os.getenv('TARGET_CHANNEL_ID')
+target_channel_id = os.getenv('TARGET_CHANNEL_ID', "-1003128443058")
 if not target_channel_id:
     raise ValueError("TARGET_CHANNEL_ID must be set in environment variables")
 TARGET_CHANNEL_ID = int(target_channel_id)
