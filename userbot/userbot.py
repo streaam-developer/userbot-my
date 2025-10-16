@@ -98,10 +98,21 @@ class UserBot:
             self.processing_links.add(bot_link)
             logger.info(f"Added {bot_link} to processing set. Current processing: {len(self.processing_links)}")
             try:
+                # Extract the start parameter or any bot command from the link
+                if 'start=' in bot_link:
+                    # This is a bot start link, extract the parameter
+                    start_param = bot_link.split('start=')[-1]
+                    bot_command = f"/start {start_param}"
+                    logger.info(f"Extracted start parameter: {start_param}, using command: {bot_command}")
+                else:
+                    # Use the link as is
+                    bot_command = bot_link
+                    logger.info(f"Using link as command: {bot_command}")
+
                 logger.info(f"Starting conversation with {TARGET_BOT_USERNAME}")
                 async with client.conversation(TARGET_BOT_USERNAME) as conv:
-                    logger.info(f"Sending message to bot: {bot_link}")
-                    await conv.send_message(bot_link)
+                    logger.info(f"Sending command to bot: {bot_command}")
+                    await conv.send_message(bot_command)
                     logger.info("Waiting for bot response...")
                     response = await conv.get_response(timeout=30)
                     logger.info(f"Received response from bot: {response.text[:200]}...")
@@ -120,9 +131,9 @@ class UserBot:
                                 logger.error(f"Failed to join channel: {channel_link}")
                             await asyncio.sleep(2)  # Avoid flood
 
-                        # Retry sending the link after joining
-                        logger.info("Re-sending link after joining channels...")
-                        await conv.send_message(bot_link)
+                        # After joining, get the content by sending the command again
+                        logger.info("Re-sending command after joining channels...")
+                        await conv.send_message(bot_command)
                         response = await conv.get_response(timeout=30)
                         logger.info(f"Received response after joining: {response.text[:200]}...")
 
