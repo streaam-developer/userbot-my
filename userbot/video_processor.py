@@ -13,9 +13,8 @@ class VideoProcessor:
 
     def __init__(self, client):
         self.client = client
-        self.max_retries = 3
 
-    async def forward_video(self, message, retry_count=0):
+    async def forward_video(self, message):
         """Forward video to target channel with error handling - always use download and re-upload to avoid forward tags"""
         try:
             # Always download and re-upload instead of forwarding to avoid forward tags

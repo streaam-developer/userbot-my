@@ -49,9 +49,6 @@ class UserBot:
     def __init__(self):
         self.processing_links = set()
         self.processed_links = set()  # Track links that have been successfully processed
-        self.retries = {}
-        self.max_retries = 3
-        self.retry_delay = 60  # seconds
 
         # Initialize helper classes
         self.bot_handlers = BotHandlers(self)
@@ -62,9 +59,9 @@ class UserBot:
         """Join a channel using the channel manager"""
         return await self.channel_manager.join_channel(channel_link)
 
-    async def forward_video(self, message, retry_count=0):
+    async def forward_video(self, message):
         """Forward video using the video processor"""
-        return await self.video_processor.forward_video(message, retry_count)
+        return await self.video_processor.forward_video(message)
 
     async def download_and_reupload_video(self, message):
         """Download and re-upload video using the video processor"""

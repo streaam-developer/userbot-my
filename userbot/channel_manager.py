@@ -4,9 +4,13 @@ Channel management and joining functions
 import asyncio
 import logging
 
-from telethon.errors import (ChannelPrivateError, FloodWaitError,
-                             InviteHashExpiredError, InviteHashInvalidError,
-                             UserAlreadyParticipantError)
+from telethon.errors import (
+    ChannelPrivateError,
+    FloodWaitError,
+    InviteHashExpiredError,
+    InviteHashInvalidError,
+    UserAlreadyParticipantError,
+)
 from telethon.tl.functions.channels import JoinChannelRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
 
@@ -19,7 +23,7 @@ class ChannelManager:
         self.client = client
 
     async def join_channel(self, channel_link):
-        """Join a channel with error handling and retry mechanism"""
+        """Join a channel with error handling"""
         try:
             # Extract channel identifier
             if 'joinchat' in channel_link or '/+' in channel_link:
@@ -55,7 +59,7 @@ class ChannelManager:
             wait_time = e.seconds
             logger.warning(f"FloodWaitError: Must wait {wait_time} seconds")
             await asyncio.sleep(wait_time)
-            return await self.join_channel(channel_link)
+            return False
         except Exception as e:
             logger.error(f"Unexpected error joining channel {channel_link}: {str(e)}")
             return False
