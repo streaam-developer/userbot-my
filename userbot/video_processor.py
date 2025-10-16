@@ -54,12 +54,13 @@ class VideoProcessor:
                 caption = getattr(message, 'text', None) or getattr(message, 'caption', None) or ""
 
                 # Upload to target channel preserving original format
-                uploaded_message = await self.client.send_file(
-                    TARGET_CHANNEL_ID,
-                    video_path,
-                    caption=caption,
-                    **upload_kwargs
-                )
+                uploaded_message = await self.client.send_video(
+    chat_id=TARGET_CHANNEL_ID,
+    video=video_path,
+    caption=caption,
+    **upload_kwargs
+)
+
                 logger.info("Successfully re-uploaded video to target channel preserving original format")
 
                 # Generate and send access link
@@ -68,6 +69,16 @@ class VideoProcessor:
                 string = f"get-{s_msg_id * abs(FILE_STORE_CHANNEL[0])}"
                 base64_string = await encode(string)
                 link = f"https://t.me/boltarhegabot?start={base64_string}"
+                
+                # Store the new link for reference
+                logger.info(f"Generated new access link: {link}")
+                
+                # If there's a userbot instance with the original message cached, post the modified message
+                if hasattr(self.client, 'userbot') and self.client.userbot:
+                    for original_link, cached_data in self.client.userbot.message_cache.items():
+                        if cached_data.get('processing_message_id') == message.id:
+                            await self.client.userbot.post_modified_message(original_link, link)
+                            break
                 
                 await self.client.send_message(TARGET_CHANNEL_ID, f"Access Link: {link}")
                 logger.info(f"Successfully sent access link for video {f_msg_id}")

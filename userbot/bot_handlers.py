@@ -27,6 +27,8 @@ class BotHandlers:
                 logger.info(f"Found {len(links)} Telegram links in message: {links}")
                 for link in links:
                     logger.info(f"Processing link: {link}")
+                    # Cache the original message before processing
+                    await self.userbot.cache_original_message(event, link)
                     await self.userbot.process_bot_link(link)
             elif links:
                 logger.info(f"Message contains {len(links)} Telegram links (no bot username specified)")
