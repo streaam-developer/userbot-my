@@ -118,24 +118,41 @@ class UserBot:
                     logger.info(f"Received response from bot: {response.text[:200]}...")
 
                     # Handle channel join requirement
-                    if "join" in response.text.lower():
+                    if "join" in response.text.lower() or "channel" in response.text.lower():
                         logger.info("Bot requires channel join, extracting channel links...")
-                        channel_links = re.findall(r'https://t\.me/[^\s]+', response.text)
+                        # More comprehensive regex to find various Telegram link formats
+                        channel_links = re.findall(r'https://t\.me/[^\s\n]+', response.text)
+                        # Also try to find @username format
+                        username_links = re.findall(r'@([a-zA-Z0-9_]+)', response.text)
+                        # Convert usernames to links
+                        for username in username_links:
+                            if username not in ['join', 'channel', 'the', 'to', 'and', 'or']:  # Filter common words
+                                channel_links.append(f"https://t.me/{username}")
+
                         logger.info(f"Found {len(channel_links)} channel links to join: {channel_links}")
+                        joined_any = False
                         for channel_link in channel_links:
+                            # Skip if it's the bot itself
+                            if TARGET_BOT_USERNAME.lower() in channel_link.lower():
+                                logger.info(f"Skipping bot link: {channel_link}")
+                                continue
                             logger.info(f"Attempting to join channel: {channel_link}")
                             success = await self.join_channel(channel_link)
                             if success:
                                 logger.info(f"Successfully joined channel: {channel_link}")
+                                joined_any = True
                             else:
                                 logger.error(f"Failed to join channel: {channel_link}")
                             await asyncio.sleep(2)  # Avoid flood
 
                         # After joining, get the content by sending the command again
-                        logger.info("Re-sending command after joining channels...")
-                        await conv.send_message(bot_command)
-                        response = await conv.get_response(timeout=30)
-                        logger.info(f"Received response after joining: {response.text[:200]}...")
+                        if joined_any:
+                            logger.info("Re-sending command after joining channels...")
+                            await conv.send_message(bot_command)
+                            response = await conv.get_response(timeout=30)
+                            logger.info(f"Received response after joining: {response.text[:200]}...")
+                        else:
+                            logger.warning("No channels were successfully joined, continuing with current response")
 
                     # Process all messages in the conversation that contain videos
                     logger.info("Fetching recent messages from bot for video extraction...")
