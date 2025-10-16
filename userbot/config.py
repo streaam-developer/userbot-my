@@ -24,8 +24,12 @@ if not target_channel_id:
 TARGET_CHANNEL_ID = int(target_channel_id)
 
 # Bot usernames to monitor (configurable via env, comma-separated)
-TARGET_BOT_USERNAMES = os.getenv('TARGET_BOT_USERNAMES', '@boltarhegabot,@Dairy_share2bot,@quality_filesbot,@File_extractorbot,@Flipkart_filebot,@Kitkat_sharebot,@Unfiltered_filebot,@Desiiihub_bot,@Sanzzyyyyyfree_bot').split(',')
+TARGET_BOT_USERNAMES = os.getenv('TARGET_BOT_USERNAMES', '@Dairy_share2bot,@quality_filesbot,@File_extractorbot,@Flipkart_filebot,@Kitkat_sharebot,@Unfiltered_filebot,@Desiiihub_bot,@Sanzzyyyyyfree_bot').split(',')
 TARGET_BOT_USERNAME = TARGET_BOT_USERNAMES[0]  # Keep for backward compatibility
 
 # Session name
 SESSION_NAME = "userbot_session"
+
+# For link generation
+FILE_STORE_CHANNEL = [TARGET_CHANNEL_ID]
+BOT_USERNAMES = "@boltarhegabot"

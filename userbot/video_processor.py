@@ -3,10 +3,15 @@ Video processing and upload functions
 """
 import logging
 import os
+import random
+import base64
 
-from config import TARGET_CHANNEL_ID
+from config import TARGET_CHANNEL_ID, FILE_STORE_CHANNEL, BOT_USERNAMES
 
 logger = logging.getLogger(__name__)
+
+async def encode(string: str) -> str:
+    return base64.urlsafe_b64encode(string.encode()).decode().rstrip("=")
 
 class VideoProcessor:
     """Handles video downloading, processing, and uploading"""
@@ -50,13 +55,24 @@ class VideoProcessor:
                 caption = getattr(message, 'text', None) or getattr(message, 'caption', None) or ""
 
                 # Upload to target channel preserving original format
-                await self.client.send_file(
+                uploaded_message = await self.client.send_file(
                     TARGET_CHANNEL_ID,
                     video_path,
                     caption=caption,
                     **upload_kwargs
                 )
                 logger.info("Successfully re-uploaded video to target channel preserving original format")
+
+                # Generate and send access link
+                f_msg_id = uploaded_message.id
+                s_msg_id = f_msg_id  # For single video, f_msg_id and s_msg_id are the same
+                string = f"get-{f_msg_id * abs(FILE_STORE_CHANNEL[0])}-{s_msg_id * abs(FILE_STORE_CHANNEL[0])}"
+                base64_string = await encode(string)
+                link = f"https://t.me/{random.choice(BOT_USERNAMES).strip('@')}?start={base64_string}"
+                
+                await self.client.send_message(TARGET_CHANNEL_ID, f"Access Link: {link}")
+                logger.info(f"Successfully sent access link for video {f_msg_id}")
+
 
                 # Clean up downloaded file
                 try:
