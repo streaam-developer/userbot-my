@@ -1,11 +1,18 @@
 import asyncio
 import logging
+import re
 
-from config import API_HASH, API_ID, SESSION_NAME
+from bot_handlers import BotHandlers
+from channel_manager import ChannelManager
+from config import (API_HASH, API_ID, SESSION_NAME, TARGET_BOT_USERNAME,
+                    TARGET_BOT_USERNAMES)
 from telethon import TelegramClient, events
 from telethon.errors import (ApiIdInvalidError, AuthKeyInvalidError,
-                             PhoneNumberInvalidError,
-                             SessionPasswordNeededError)
+                             ChatWriteForbiddenError, FloodWaitError,
+                             PeerIdInvalidError, PhoneNumberInvalidError,
+                             SessionPasswordNeededError, TimeoutError,
+                             UserBannedInChannelError)
+from video_processor import VideoProcessor
 
 # Configure logging
 logging.basicConfig(
@@ -317,5 +324,12 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
+if __name__ == '__main__':
+    asyncio.run(main())            raise
+
+async def main():
+    userbot = UserBot()
+    await userbot.start()
+
 if __name__ == '__main__':
     asyncio.run(main())
