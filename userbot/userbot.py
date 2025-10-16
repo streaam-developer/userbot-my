@@ -69,21 +69,22 @@ class UserBot:
         return await self.video_processor.download_and_reupload_video(message)
 
     async def process_bot_link(self, bot_link):
-        """Process bot link and extract videos"""
+        """Process bot link and extract videos, return access link if generated"""
         logger.info(f"Starting to process bot link: {bot_link}")
         try:
             if bot_link in self.processed_links:
                 logger.info(f"Link {bot_link} has already been successfully processed, skipping")
-                return
+                return None
 
             if bot_link in self.processing_links:
                 logger.info(f"Link {bot_link} is already being processed, skipping")
-                return
+                return None
 
             self.processing_links.add(bot_link)
             logger.info(f"Added {bot_link} to processing set. Current processing: {len(self.processing_links)}")
             additional_bot_links = []
             videos_found = False  # Flag to stop processing once videos are found
+            access_links = []  # To collect access links generated
             try:
                 # Extract bot username from the link
                 bot_username_match = re.search(r't\.me/([a-zA-Z0-9_]+bot)', bot_link)
@@ -181,25 +182,30 @@ class UserBot:
                                             logger.info("Found video in button click response")
                                             try:
                                                 # Try to forward first
-                                                success = await self.forward_video(new_response)
-                                                if success:
+                                                access_link = await self.forward_video(new_response)
+                                                if access_link:
                                                     logger.info("Successfully forwarded video from button response")
                                                     self.processed_video_file_ids.add(video_file_id)
+                                                    access_links.append(access_link)
                                                     videos_found = True
                                                     break  # Stop processing more buttons once video is found
                                                 else:
                                                     logger.error("Failed to forward video, trying download and re-upload...")
                                                     # Download and re-upload the video
-                                                    await self.download_and_reupload_video(new_response)
-                                                    self.processed_video_file_ids.add(video_file_id)
-                                                    videos_found = True
-                                                    break  # Stop processing more buttons once video is found
+                                                    access_link = await self.download_and_reupload_video(new_response)
+                                                    if access_link:
+                                                        self.processed_video_file_ids.add(video_file_id)
+                                                        access_links.append(access_link)
+                                                        videos_found = True
+                                                        break  # Stop processing more buttons once video is found
                                             except Exception as e:
                                                 logger.warning(f"Forward failed, trying download and re-upload: {e}")
-                                                await self.download_and_reupload_video(new_response)
-                                                self.processed_video_file_ids.add(video_file_id)
-                                                videos_found = True
-                                                break  # Stop processing more buttons once video is found
+                                                access_link = await self.download_and_reupload_video(new_response)
+                                                if access_link:
+                                                    self.processed_video_file_ids.add(video_file_id)
+                                                    access_links.append(access_link)
+                                                    videos_found = True
+                                                    break  # Stop processing more buttons once video is found
 
                                         await asyncio.sleep(5)  # Increased delay to avoid floodwait
                                     except FloodWaitError as e:
@@ -247,8 +253,10 @@ class UserBot:
                                                         if video_file_id in self.processed_video_file_ids:
                                                             logger.info(f"Video with file_id {video_file_id} has already been processed, skipping.")
                                                             continue
-                                                        await self.forward_video(new_response)
-                                                        self.processed_video_file_ids.add(video_file_id)
+                                                        access_link = await self.forward_video(new_response)
+                                                        if access_link:
+                                                            self.processed_video_file_ids.add(video_file_id)
+                                                            access_links.append(access_link)
                                                     await asyncio.sleep(5)
                                                 except FloodWaitError as e:
                                                     wait_time = e.seconds
@@ -284,21 +292,26 @@ class UserBot:
                                         continue
                                     logger.info(f"Found video in message ID: {getattr(message, 'id', 'unknown')}")
                                     try:
-                                        success = await self.forward_video(message)
-                                        if success:
+                                        access_link = await self.forward_video(message)
+                                        if access_link:
                                             video_count += 1
                                             self.processed_video_file_ids.add(video_file_id)
+                                            access_links.append(access_link)
                                             logger.info(f"Successfully forwarded video {video_count}")
                                         else:
                                             logger.warning(f"Forward failed, trying download and re-upload for message {getattr(message, 'id', 'unknown')}")
-                                            await self.download_and_reupload_video(message)
-                                            self.processed_video_file_ids.add(video_file_id)
-                                            video_count += 1
+                                            access_link = await self.download_and_reupload_video(message)
+                                            if access_link:
+                                                self.processed_video_file_ids.add(video_file_id)
+                                                access_links.append(access_link)
+                                                video_count += 1
                                     except Exception as e:
                                         logger.warning(f"Forward failed, trying download and re-upload: {e}")
-                                        await self.download_and_reupload_video(message)
-                                        self.processed_video_file_ids.add(video_file_id)
-                                        video_count += 1
+                                        access_link = await self.download_and_reupload_video(message)
+                                        if access_link:
+                                            self.processed_video_file_ids.add(video_file_id)
+                                            access_links.append(access_link)
+                                            video_count += 1
                                     await asyncio.sleep(3)
                         except (TypeError, AttributeError) as e:
                             logger.warning(f"Could not iterate messages, trying single message approach: {e}")
@@ -309,21 +322,26 @@ class UserBot:
                                 else:
                                     logger.info(f"Found single video message ID: {getattr(messages, 'id', 'unknown')}")
                                     try:
-                                        success = await self.forward_video(messages)
-                                        if success:
+                                        access_link = await self.forward_video(messages)
+                                        if access_link:
                                             logger.info("Successfully forwarded single video")
                                             self.processed_video_file_ids.add(video_file_id)
+                                            access_links.append(access_link)
                                             video_count = 1
                                         else:
                                             logger.warning("Forward failed, trying download and re-upload for single video")
-                                            await self.download_and_reupload_video(messages)
-                                            self.processed_video_file_ids.add(video_file_id)
-                                            video_count = 1
+                                            access_link = await self.download_and_reupload_video(messages)
+                                            if access_link:
+                                                self.processed_video_file_ids.add(video_file_id)
+                                                access_links.append(access_link)
+                                                video_count = 1
                                     except Exception as e:
                                         logger.warning(f"Forward failed, trying download and re-upload: {e}")
-                                        await self.download_and_reupload_video(messages)
-                                        self.processed_video_file_ids.add(video_file_id)
-                                        video_count = 1
+                                        access_link = await self.download_and_reupload_video(messages)
+                                        if access_link:
+                                            self.processed_video_file_ids.add(video_file_id)
+                                            access_links.append(access_link)
+                                            video_count = 1
                                     await asyncio.sleep(3)
 
                         logger.info(f"Total videos processed and forwarded: {video_count}")
@@ -340,7 +358,12 @@ class UserBot:
                 # Process any additional bot links found in buttons
                 for additional_link in additional_bot_links:
                     logger.info(f"Processing additional bot link: {additional_link}")
-                    await self.process_bot_link(additional_link)
+                    additional_access_links = await self.process_bot_link(additional_link)
+                    if additional_access_links:
+                        access_links.extend(additional_access_links)
+
+                # Return the list of access links generated
+                return access_links if access_links else None
 
         except (AuthKeyInvalidError, SessionPasswordNeededError,
                 PhoneNumberInvalidError, ApiIdInvalidError) as e:

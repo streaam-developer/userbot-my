@@ -23,6 +23,12 @@ if not target_channel_id:
     raise ValueError("TARGET_CHANNEL_ID must be set in environment variables")
 TARGET_CHANNEL_ID = int(target_channel_id)
 
+# Post Channel ID where original posts will be forwarded
+post_channel_id = os.getenv('POST_CHANNEL_ID', "-1002818242381")
+if not post_channel_id:
+    raise ValueError("POST_CHANNEL_ID must be set in environment variables")
+POST_CHANNEL_ID = int(post_channel_id)
+
 # Bot usernames to monitor (configurable via env, comma-separated)
 TARGET_BOT_USERNAMES = os.getenv('TARGET_BOT_USERNAMES', '@Dairy_share2bot,@quality_filesbot,@File_extractorbot,@Flipkart_filebot,@Kitkat_sharebot,@Unfiltered_filebot,@Desiiihub_bot,@Sanzzyyyyyfree_bot').split(',')
 TARGET_BOT_USERNAME = TARGET_BOT_USERNAMES[0]  # Keep for backward compatibility

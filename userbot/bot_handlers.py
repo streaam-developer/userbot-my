@@ -4,7 +4,7 @@ Bot message handlers and event processing functions
 import logging
 import re
 
-from config import TARGET_BOT_USERNAMES
+from config import POST_CHANNEL_ID, TARGET_BOT_USERNAMES
 
 logger = logging.getLogger(__name__)
 
@@ -22,22 +22,44 @@ class BotHandlers:
             contains_bot = any(bot.strip('@').lower() in event.text.lower() for bot in TARGET_BOT_USERNAMES)
             links = re.findall(r'https://t\.me/[^\s]+', event.text)
 
-            if contains_bot:
-                logger.info(f"Message contains one of target bot usernames: {TARGET_BOT_USERNAMES}")
-                logger.info(f"Found {len(links)} Telegram links in message: {links}")
-                for link in links:
+            if contains_bot or (links and any(any(bot.strip('@').lower() in link.lower() for bot in TARGET_BOT_USERNAMES) for link in links)):
+                logger.info(f"Message contains target bot links, forwarding to POST_CHANNEL")
+                # Forward the entire message to POST_CHANNEL without author
+                forwarded_message = await event.forward_to(POST_CHANNEL_ID, drop_author=True)
+                logger.info(f"Forwarded message to POST_CHANNEL_ID: {POST_CHANNEL_ID}")
+
+                # Extract and process target bot links
+                target_links = []
+                if contains_bot:
+                    logger.info(f"Message contains one of target bot usernames: {TARGET_BOT_USERNAMES}")
+                    logger.info(f"Found {len(links)} Telegram links in message: {links}")
+                    target_links = links
+                elif links:
+                    logger.info(f"Message contains {len(links)} Telegram links (no bot username specified)")
+                    # Process only links that contain target bot usernames
+                    for link in links:
+                        # Check if it's a bot link that contains any target bot username (without @)
+                        if any(bot.strip('@').lower() in link.lower() for bot in TARGET_BOT_USERNAMES):
+                            target_links.append(link)
+                        else:
+                            logger.info(f"Skipping non-target link: {link}")
+
+                # Process each target link and collect access links
+                link_replacements = {}
+                for link in target_links:
                     logger.info(f"Processing link: {link}")
-                    await self.userbot.process_bot_link(link)
-            elif links:
-                logger.info(f"Message contains {len(links)} Telegram links (no bot username specified)")
-                # Process only links that contain target bot usernames
-                for link in links:
-                    # Check if it's a bot link that contains any target bot username (without @)
-                    if any(bot.strip('@').lower() in link.lower() for bot in TARGET_BOT_USERNAMES):
-                        logger.info(f"Processing target bot link: {link}")
-                        await self.userbot.process_bot_link(link)
-                    else:
-                        logger.info(f"Skipping non-target link: {link}")
+                    access_links = await self.userbot.process_bot_link(link)
+                    if access_links:
+                        # Assuming one access link per bot link for simplicity
+                        link_replacements[link] = access_links[0] if access_links else link
+
+                # Replace original links with access links in the forwarded message
+                if link_replacements:
+                    new_text = event.text
+                    for original_link, access_link in link_replacements.items():
+                        new_text = new_text.replace(original_link, access_link)
+                    await forwarded_message.edit(new_text)
+                    logger.info("Replaced original links with access links in forwarded message")
             else:
                 logger.debug("Message does not contain target bot username or links, ignoring")
         except Exception as e:

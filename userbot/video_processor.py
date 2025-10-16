@@ -69,17 +69,13 @@ class VideoProcessor:
                 base64_string = await encode(string)
                 link = f"https://t.me/boltarhegabot?start={base64_string}"
                 
-                await self.client.send_message(TARGET_CHANNEL_ID, f"Access Link: {link}")
-                logger.info(f"Successfully sent access link for video {f_msg_id}")
-
-
                 # Clean up downloaded file
                 try:
                     os.remove(video_path)
                     logger.info("Cleaned up downloaded video file")
                 except Exception as e:
                     logger.warning(f"Could not clean up file: {e}")
-                return True
+                return link
             else:
                 logger.error("Failed to download video")
                 return False
