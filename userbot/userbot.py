@@ -4,14 +4,25 @@ import re
 
 from bot_handlers import BotHandlers
 from channel_manager import ChannelManager
-from config import (API_HASH, API_ID, SESSION_NAME, TARGET_BOT_USERNAME,
-                    TARGET_BOT_USERNAMES)
+from config import (
+    API_HASH,
+    API_ID,
+    SESSION_NAME,
+    TARGET_BOT_USERNAME,
+    TARGET_BOT_USERNAMES,
+)
 from telethon import TelegramClient, events
-from telethon.errors import (ApiIdInvalidError, AuthKeyInvalidError,
-                             ChatWriteForbiddenError, FloodWaitError,
-                             PeerIdInvalidError, PhoneNumberInvalidError,
-                             SessionPasswordNeededError, TimeoutError,
-                             UserBannedInChannelError)
+from telethon.errors import (
+    ApiIdInvalidError,
+    AuthKeyInvalidError,
+    ChatWriteForbiddenError,
+    FloodWaitError,
+    PeerIdInvalidError,
+    PhoneNumberInvalidError,
+    SessionPasswordNeededError,
+    TimeoutError,
+    UserBannedInChannelError,
+)
 from video_processor import VideoProcessor
 
 # Configure logging
@@ -37,6 +48,7 @@ client = TelegramClient(SESSION_NAME, int(API_ID), API_HASH)
 class UserBot:
     def __init__(self):
         self.processing_links = set()
+        self.processed_links = set()  # Track links that have been successfully processed
         self.retries = {}
         self.max_retries = 3
         self.retry_delay = 60  # seconds
@@ -62,6 +74,10 @@ class UserBot:
         """Process bot link and extract videos"""
         logger.info(f"Starting to process bot link: {bot_link}")
         try:
+            if bot_link in self.processed_links:
+                logger.info(f"Link {bot_link} has already been successfully processed, skipping")
+                return
+
             if bot_link in self.processing_links:
                 logger.info(f"Link {bot_link} is already being processed, skipping")
                 return
@@ -272,6 +288,9 @@ class UserBot:
                                 await asyncio.sleep(3)
 
                         logger.info(f"Total videos processed and forwarded: {video_count}")
+                        if video_count > 0:
+                            self.processed_links.add(bot_link)
+                            logger.info(f"Added {bot_link} to processed links set")
                     else:
                         logger.warning("No messages retrieved from bot")
 
