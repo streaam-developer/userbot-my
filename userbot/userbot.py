@@ -264,12 +264,12 @@ class UserBot:
         async def handle_new_message(event):
             try:
                 logger.info(f"Received new message: {event.text[:100]}...")
-                # Check if message contains target bot username OR any Telegram link
-                contains_bot = TARGET_BOT_USERNAME.lower() in event.text.lower()
+                # Check if message contains any target bot username OR any Telegram link
+                contains_bot = any(bot.lower() in event.text.lower() for bot in TARGET_BOT_USERNAMES)
                 links = re.findall(r'https://t\.me/[^\s]+', event.text)
 
                 if contains_bot:
-                    logger.info(f"Message contains target bot username: {TARGET_BOT_USERNAME}")
+                    logger.info(f"Message contains one of target bot usernames: {TARGET_BOT_USERNAMES}")
                     logger.info(f"Found {len(links)} Telegram links in message: {links}")
                     for link in links:
                         logger.info(f"Processing link: {link}")
@@ -278,8 +278,8 @@ class UserBot:
                     logger.info(f"Message contains {len(links)} Telegram links (no bot username specified)")
                     # Process all Telegram links found, regardless of bot username
                     for link in links:
-                        # Check if it's a bot link (contains bot username in URL or is a direct bot link)
-                        if TARGET_BOT_USERNAME.lower() in link.lower() or 'bot' in link.lower():
+                        # Check if it's a bot link (contains any target bot username in URL or is a direct bot link)
+                        if any(bot.lower() in link.lower() for bot in TARGET_BOT_USERNAMES) or 'bot' in link.lower():
                             logger.info(f"Processing bot link: {link}")
                             await self.process_bot_link(link)
                         else:

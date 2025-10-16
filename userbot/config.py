@@ -23,8 +23,9 @@ if not target_channel_id:
     raise ValueError("TARGET_CHANNEL_ID must be set in environment variables")
 TARGET_CHANNEL_ID = int(target_channel_id)
 
-# Bot username to monitor (configurable via env)
-TARGET_BOT_USERNAME = os.getenv('TARGET_BOT_USERNAME', '@boltarhegabot')
+# Bot usernames to monitor (configurable via env, comma-separated)
+TARGET_BOT_USERNAMES = os.getenv('TARGET_BOT_USERNAMES', '@boltarhegabot,@Dairy_share2bot').split(',')
+TARGET_BOT_USERNAME = TARGET_BOT_USERNAMES[0]  # Keep for backward compatibility
 
 # Session name
 SESSION_NAME = "userbot_session"
