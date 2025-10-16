@@ -4,8 +4,8 @@ import os
 import re
 import sys
 
-# Add the parent directory to Python path so imports work when running as script
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add the current directory to Python path so imports work when running as script
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from bot_handlers import BotHandlers
 from channel_manager import ChannelManager
