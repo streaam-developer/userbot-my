@@ -50,14 +50,37 @@ class VideoProcessor:
 
     def save_temp_post(self, message):
         """Save original post temporarily for later editing and posting"""
-        post_key = f"{message.chat_id}_{message.id}"
-        self.temp_posts[post_key] = {
-            'message': message,
-            'text': message.text,
-            'timestamp': time.time()
-        }
-        logger.info(f"Saved temporary post: {post_key}")
-        return post_key
+        try:
+            logger.info(f"save_temp_post called with message: {message}")
+            logger.info(f"message type: {type(message)}")
+
+            if not message:
+                logger.error("Message is None in save_temp_post")
+                return None
+
+            if not hasattr(message, 'chat_id'):
+                logger.error(f"Message has no chat_id attribute. Available attributes: {dir(message)}")
+                return None
+
+            if not hasattr(message, 'id'):
+                logger.error(f"Message has no id attribute. Available attributes: {dir(message)}")
+                return None
+
+            # Safely get text attribute
+            text = getattr(message, 'text', '') or ''
+
+            post_key = f"{message.chat_id}_{message.id}"
+            self.temp_posts[post_key] = {
+                'message': message,
+                'text': text,
+                'timestamp': time.time()
+            }
+            logger.info(f"Saved temporary post: {post_key}")
+            return post_key
+        except Exception as e:
+            logger.error(f"Error in save_temp_post: {e}")
+            logger.error(f"message: {message}")
+            return None
 
     def get_temp_post(self, post_key):
         """Get temporary post by key"""
@@ -173,14 +196,35 @@ class VideoProcessor:
 
     def track_original_post(self, original_message, uploaded_message_id, access_link):
         """Track original post and its corresponding access link"""
-        original_key = f"{original_message.chat_id}_{original_message.id}"
-        self.original_posts[original_key] = {
-            'original_message': original_message,
-            'uploaded_message_id': uploaded_message_id,
-            'access_link': access_link,
-            'timestamp': asyncio.get_event_loop().time()
-        }
-        logger.info(f"Tracked original post {original_key} -> access link: {access_link}")
+        try:
+            logger.info(f"track_original_post called with original_message: {original_message}")
+            logger.info(f"original_message type: {type(original_message)}")
+            logger.info(f"uploaded_message_id: {uploaded_message_id}")
+            logger.info(f"access_link: {access_link}")
+
+            if not original_message:
+                logger.error("Original message is None in track_original_post")
+                return
+
+            if not hasattr(original_message, 'chat_id'):
+                logger.error(f"Original message has no chat_id attribute. Available attributes: {dir(original_message)}")
+                return
+
+            if not hasattr(original_message, 'id'):
+                logger.error(f"Original message has no id attribute. Available attributes: {dir(original_message)}")
+                return
+
+            original_key = f"{original_message.chat_id}_{original_message.id}"
+            self.original_posts[original_key] = {
+                'original_message': original_message,
+                'uploaded_message_id': uploaded_message_id,
+                'access_link': access_link,
+                'timestamp': time.time()
+            }
+            logger.info(f"Tracked original post {original_key} -> access link: {access_link}")
+        except Exception as e:
+            logger.error(f"Error in track_original_post: {e}")
+            logger.error(f"original_message: {original_message}")
 
     async def replace_original_link(self, original_message, access_link):
         """Replace the original bot link in the message with access link"""
@@ -235,10 +279,10 @@ class VideoProcessor:
             from info import FILE_STORE_CHANNEL
 
             if is_batch and start_id and end_id:
-                # For batch links (multiple videos) - exactly like your commands.py
+                # For batch links (multiple videos) - EXACTLY like your commands.py line 276
                 string = f"get-{start_id * abs(FILE_STORE_CHANNEL[0])}-{end_id * abs(FILE_STORE_CHANNEL[0])}"
             else:
-                # For single video links - exactly like your commands.py
+                # For single video links - EXACTLY like your commands.py line 263
                 string = f"get-{message_id * abs(FILE_STORE_CHANNEL[0])}"
 
             base64_string = await encode(string)

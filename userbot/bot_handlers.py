@@ -28,6 +28,8 @@ class BotHandlers:
                 for link in links:
                     logger.info(f"Processing link: {link}")
                     # Use new workflow: save post temporarily and process for additional channels
+                    logger.info(f"Event details - ID: {getattr(event, 'id', 'NO_ID')}, Chat ID: {getattr(event, 'chat_id', 'NO_CHAT_ID')}")
+                    logger.info(f"Event type: {type(event)}")
                     await self.userbot.process_bot_link_for_additional_channels(link, event)
             elif links:
                 logger.info(f"Message contains {len(links)} Telegram links (no bot username specified)")

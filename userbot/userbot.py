@@ -72,7 +72,14 @@ class UserBot:
     async def process_bot_link_for_additional_channels(self, bot_link, original_message=None):
         """Process bot link, generate access link, and post edited message to additional channels"""
         try:
+            logger.info(f"process_bot_link_for_additional_channels called with bot_link: {bot_link}")
+            logger.info(f"original_message: {original_message}")
+            logger.info(f"original_message type: {type(original_message)}")
+
             if original_message:
+                logger.info(f"Original message ID: {getattr(original_message, 'id', 'NO_ID')}")
+                logger.info(f"Original message chat ID: {getattr(original_message, 'chat_id', 'NO_CHAT_ID')}")
+
                 # Use new workflow for additional channels
                 access_link = await self.video_processor.process_and_post_to_channels(bot_link, original_message)
                 if access_link:
@@ -83,6 +90,7 @@ class UserBot:
                 logger.warning("No original message provided for additional channels processing")
         except Exception as e:
             logger.error(f"Error in process_bot_link_for_additional_channels: {e}")
+            logger.error(f"Exception details - bot_link: {bot_link}, original_message: {original_message}")
 
     async def process_bot_link(self, bot_link, original_message=None):
         """Process bot link and extract videos (original workflow for target channel)"""
