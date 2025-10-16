@@ -221,7 +221,7 @@ class UserBot:
                                 await asyncio.sleep(3)  # Increased delay to avoid floodwait
 
                     # Continuously monitor conversation for updates and videos
-                    max_checks = 10  # Maximum number of checks to avoid infinite loop
+                    max_checks = 5  # Maximum number of checks to avoid infinite loop
                     check_count = 0
                     last_message_id = response.id if hasattr(response, 'id') else None
                     initial_response_text = response.text if hasattr(response, 'text') else ""
