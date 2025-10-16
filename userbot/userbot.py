@@ -49,6 +49,7 @@ class UserBot:
     def __init__(self):
         self.processing_links = set()
         self.processed_links = set()  # Track links that have been successfully processed
+        self.processed_video_ids = set()
 
         # Initialize helper classes
         self.bot_handlers = BotHandlers(self)
@@ -173,23 +174,30 @@ class UserBot:
 
                                         # Check if video is forwardable, if not, download and re-upload
                                         if hasattr(new_response, 'video') and new_response.video:
+                                            video_id = getattr(new_response, 'id', 'unknown')
+                                            if video_id in self.processed_video_ids:
+                                                logger.info(f"Video {video_id} has already been processed, skipping.")
+                                                continue
                                             logger.info("Found video in button click response")
                                             try:
                                                 # Try to forward first
                                                 success = await self.forward_video(new_response)
                                                 if success:
                                                     logger.info("Successfully forwarded video from button response")
+                                                    self.processed_video_ids.add(video_id)
                                                     videos_found = True
                                                     break  # Stop processing more buttons once video is found
                                                 else:
                                                     logger.error("Failed to forward video, trying download and re-upload...")
                                                     # Download and re-upload the video
                                                     await self.download_and_reupload_video(new_response)
+                                                    self.processed_video_ids.add(video_id)
                                                     videos_found = True
                                                     break  # Stop processing more buttons once video is found
                                             except Exception as e:
                                                 logger.warning(f"Forward failed, trying download and re-upload: {e}")
                                                 await self.download_and_reupload_video(new_response)
+                                                self.processed_video_ids.add(video_id)
                                                 videos_found = True
                                                 break  # Stop processing more buttons once video is found
 
@@ -235,7 +243,12 @@ class UserBot:
                                                     await response.click(button.data)
                                                     new_response = await conv.get_response(timeout=30)
                                                     if hasattr(new_response, 'video') and new_response.video:
+                                                        video_id = getattr(new_response, 'id', 'unknown')
+                                                        if video_id in self.processed_video_ids:
+                                                            logger.info(f"Video {video_id} has already been processed, skipping.")
+                                                            continue
                                                         await self.forward_video(new_response)
+                                                        self.processed_video_ids.add(video_id)
                                                     await asyncio.sleep(5)
                                                 except FloodWaitError as e:
                                                     wait_time = e.seconds
@@ -265,39 +278,53 @@ class UserBot:
                             logger.info(f"Processing {len(message_list)} messages")
                             for message in message_list:
                                 if hasattr(message, 'video') and message.video:
+                                    video_id = getattr(message, 'id', 'unknown')
+                                    if video_id in self.processed_video_ids:
+                                        logger.info(f"Video {video_id} has already been processed, skipping.")
+                                        continue
                                     logger.info(f"Found video in message ID: {getattr(message, 'id', 'unknown')}")
                                     try:
                                         success = await self.forward_video(message)
                                         if success:
                                             video_count += 1
+                                            self.processed_video_ids.add(video_id)
                                             logger.info(f"Successfully forwarded video {video_count}")
                                         else:
                                             logger.warning(f"Forward failed, trying download and re-upload for message {getattr(message, 'id', 'unknown')}")
                                             await self.download_and_reupload_video(message)
+                                            self.processed_video_ids.add(video_id)
                                             video_count += 1
                                     except Exception as e:
                                         logger.warning(f"Forward failed, trying download and re-upload: {e}")
                                         await self.download_and_reupload_video(message)
+                                        self.processed_video_ids.add(video_id)
                                         video_count += 1
                                     await asyncio.sleep(3)
                         except (TypeError, AttributeError) as e:
                             logger.warning(f"Could not iterate messages, trying single message approach: {e}")
                             if hasattr(messages, 'video') and messages.video:
-                                logger.info(f"Found single video message ID: {getattr(messages, 'id', 'unknown')}")
-                                try:
-                                    success = await self.forward_video(messages)
-                                    if success:
-                                        logger.info("Successfully forwarded single video")
-                                        video_count = 1
-                                    else:
-                                        logger.warning("Forward failed, trying download and re-upload for single video")
+                                video_id = getattr(messages, 'id', 'unknown')
+                                if video_id in self.processed_video_ids:
+                                    logger.info(f"Video {video_id} has already been processed, skipping.")
+                                else:
+                                    logger.info(f"Found single video message ID: {getattr(messages, 'id', 'unknown')}")
+                                    try:
+                                        success = await self.forward_video(messages)
+                                        if success:
+                                            logger.info("Successfully forwarded single video")
+                                            self.processed_video_ids.add(video_id)
+                                            video_count = 1
+                                        else:
+                                            logger.warning("Forward failed, trying download and re-upload for single video")
+                                            await self.download_and_reupload_video(messages)
+                                            self.processed_video_ids.add(video_id)
+                                            video_count = 1
+                                    except Exception as e:
+                                        logger.warning(f"Forward failed, trying download and re-upload: {e}")
                                         await self.download_and_reupload_video(messages)
+                                        self.processed_video_ids.add(video_id)
                                         video_count = 1
-                                except Exception as e:
-                                    logger.warning(f"Forward failed, trying download and re-upload: {e}")
-                                    await self.download_and_reupload_video(messages)
-                                    video_count = 1
-                                await asyncio.sleep(3)
+                                    await asyncio.sleep(3)
 
                         logger.info(f"Total videos processed and forwarded: {video_count}")
                         if video_count > 0:
