@@ -7,8 +7,8 @@ from config import (API_HASH, API_ID, SESSION_NAME, TARGET_BOT_USERNAME,
 from telethon import TelegramClient, events
 from telethon.errors import (ApiIdInvalidError, AuthKeyInvalidError,
                              ChannelPrivateError, ChatWriteForbiddenError,
-                             FloodWaitError, InviteHashInvalidError,
-                             InviteHashExpiredError, PeerIdInvalidError,
+                             FloodWaitError, InviteHashExpiredError,
+                             InviteHashInvalidError, PeerIdInvalidError,
                              PhoneNumberInvalidError,
                              SessionPasswordNeededError, TimeoutError,
                              UserAlreadyParticipantError,
@@ -98,6 +98,7 @@ class UserBot:
 
             self.processing_links.add(bot_link)
             logger.info(f"Added {bot_link} to processing set. Current processing: {len(self.processing_links)}")
+            additional_bot_links = []
             try:
                 # Extract bot username from the link
                 bot_username_match = re.search(r't\.me/([a-zA-Z0-9_]+bot)', bot_link)
@@ -172,7 +173,12 @@ class UserBot:
                                         else:
                                             logger.error(f"Failed to join channel from button: {button.url}")
                                     else:
-                                        logger.warning(f"Skipping nested bot link in button to avoid conversation error: {button.url}")
+                                        # Collect bot links for later processing instead of skipping
+                                        if 't.me/' in button.url and 'bot' in button.url:
+                                            logger.info(f"Found nested bot link in button, collecting for later: {button.url}")
+                                            additional_bot_links.append(button.url)
+                                        else:
+                                            logger.warning(f"Skipping non-bot link in button: {button.url}")
                                     await asyncio.sleep(2)
                                 elif hasattr(button, 'data'):
                                     logger.info(f"Clicking inline button with data: {button.data}")
@@ -234,7 +240,11 @@ class UserBot:
                 self.processing_links.remove(bot_link)
                 logger.info(f"Removed {bot_link} from processing set. Current processing: {len(self.processing_links)}")
 
-                
+                # Process any additional bot links found in buttons
+                for additional_link in additional_bot_links:
+                    logger.info(f"Processing additional bot link: {additional_link}")
+                    await self.process_bot_link(additional_link)
+
         except (AuthKeyInvalidError, SessionPasswordNeededError,
                 PhoneNumberInvalidError, ApiIdInvalidError) as e:
             logger.error(f"Authentication error processing bot link {bot_link}: {str(e)}")
