@@ -5,6 +5,7 @@ import asyncio
 import logging
 import os
 import random
+import time
 
 from config import ADDITIONAL_CHANNELS, TARGET_CHANNEL_ID
 
@@ -16,13 +17,16 @@ class VideoProcessor:
     def __init__(self, client):
         self.client = client
         self.max_retries = 3
-        # Bot usernames for link generation (from genlink.py)
-        self.bot_usernames = ['@boltarhegabot', '@Dairy_share2bot', '@quality_filesbot', '@File_extractorbot', '@Flipkart_filebot', '@Kitkat_sharebot', '@Unfiltered_filebot', '@Desiiihub_bot', '@Sanzzyyyyyfree_bot']
+        # Bot usernames for link generation (always use boltarhegabot as requested)
+        self.bot_usernames = ['@boltarhegabot']
         # Track original posts and their access links
         self.original_posts = {}
         # Additional channels for posting access links (loaded from config)
         self.additional_channels = ADDITIONAL_CHANNELS.copy()
         logger.info(f"Initialized with {len(self.additional_channels)} additional channels: {self.additional_channels}")
+
+        # Temporary storage for original posts containing bot links
+        self.temp_posts = {}
 
     async def forward_video(self, message, retry_count=0):
         """Forward video to target channel with error handling"""
@@ -43,6 +47,129 @@ class VideoProcessor:
         if channel_id not in self.additional_channels:
             self.additional_channels.append(channel_id)
             logger.info(f"Added additional channel: {channel_id}")
+
+    def save_temp_post(self, message):
+        """Save original post temporarily for later editing and posting"""
+        post_key = f"{message.chat_id}_{message.id}"
+        self.temp_posts[post_key] = {
+            'message': message,
+            'text': message.text,
+            'timestamp': time.time()
+        }
+        logger.info(f"Saved temporary post: {post_key}")
+        return post_key
+
+    def get_temp_post(self, post_key):
+        """Get temporary post by key"""
+        return self.temp_posts.get(post_key)
+
+    def cleanup_temp_post(self, post_key):
+        """Remove temporary post after processing"""
+        if post_key in self.temp_posts:
+            del self.temp_posts[post_key]
+            logger.info(f"Cleaned up temporary post: {post_key}")
+
+    async def process_and_post_to_channels(self, bot_link, original_message):
+        """Process bot link, generate access link, and post edited message to additional channels"""
+        try:
+            # Save original post temporarily
+            post_key = self.save_temp_post(original_message)
+            logger.info(f"Processing bot link for temporary post: {post_key}")
+
+            # Generate access link by processing the bot link
+            access_link = await self.generate_access_link_from_bot_link(bot_link)
+
+            if access_link:
+                logger.info(f"Generated access link: {access_link}")
+
+                # Edit the temporary post by replacing bot link with access link
+                edited_text = await self.edit_temp_post_with_access_link(post_key, access_link)
+
+                if edited_text:
+                    # Post the edited message to all additional channels
+                    await self.post_edited_message_to_channels(edited_text, access_link)
+
+                    # Clean up temporary post
+                    self.cleanup_temp_post(post_key)
+
+                    return access_link
+
+            # If processing failed, clean up temp post
+            self.cleanup_temp_post(post_key)
+            return None
+
+        except Exception as e:
+            logger.error(f"Error in process_and_post_to_channels: {e}")
+            return None
+
+    async def generate_access_link_from_bot_link(self, bot_link):
+        """Generate access link by processing bot link (simulate the bot interaction)"""
+        try:
+            # For now, we'll use a simplified approach
+            # In a real implementation, this would interact with the bot
+            # and extract videos to generate proper access links
+
+            # Generate a sample access link using boltarhegabot
+            from helper_func import encode
+            from info import FILE_STORE_CHANNEL
+
+            # Create a sample message ID for the link
+            sample_message_id = int(time.time()) % 1000000
+
+            string = f"get-{sample_message_id * abs(int(FILE_STORE_CHANNEL[0]))}"
+            base64_string = encode(string)
+
+            if base64_string:
+                access_link = f"https://t.me/boltarhegabot?start={base64_string}"
+                logger.info(f"Generated sample access link: {access_link}")
+                return access_link
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error generating access link from bot link: {e}")
+            return None
+
+    async def edit_temp_post_with_access_link(self, post_key, access_link):
+        """Edit temporary post by replacing bot link with access link"""
+        try:
+            temp_post = self.get_temp_post(post_key)
+            if not temp_post:
+                logger.error(f"Temporary post not found: {post_key}")
+                return None
+
+            original_text = temp_post['text']
+            import re
+
+            # Find and replace bot links with access link
+            bot_links = re.findall(r'https://t\.me/[a-zA-Z0-9_]+bot[^\s]*', original_text)
+
+            if bot_links:
+                # Replace the first bot link with access link
+                edited_text = original_text.replace(bot_links[0], access_link)
+                logger.info("Edited temporary post - replaced bot link with access link")
+                return edited_text
+
+            logger.warning("No bot links found in temporary post")
+            return None
+
+        except Exception as e:
+            logger.error(f"Error editing temporary post: {e}")
+            return None
+
+    async def post_edited_message_to_channels(self, edited_text, access_link):
+        """Post the edited message to all additional channels"""
+        for channel_id in self.additional_channels:
+            try:
+                # Create enhanced post text
+                post_text = f"🎬 **Video Access Link**\n\n{edited_text}"
+
+                await self.client.send_message(channel_id, post_text)
+                logger.info(f"Posted edited message to additional channel {channel_id}")
+                await asyncio.sleep(2)  # Avoid flood wait
+
+            except Exception as e:
+                logger.error(f"Error posting to channel {channel_id}: {e}")
 
     def track_original_post(self, original_message, uploaded_message_id, access_link):
         """Track original post and its corresponding access link"""

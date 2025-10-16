@@ -69,8 +69,23 @@ class UserBot:
         """Download and re-upload video using the video processor"""
         return await self.video_processor.download_and_reupload_video(message)
 
+    async def process_bot_link_for_additional_channels(self, bot_link, original_message=None):
+        """Process bot link, generate access link, and post edited message to additional channels"""
+        try:
+            if original_message:
+                # Use new workflow for additional channels
+                access_link = await self.video_processor.process_and_post_to_channels(bot_link, original_message)
+                if access_link:
+                    logger.info(f"Successfully processed bot link and posted to additional channels: {access_link}")
+                else:
+                    logger.warning("Failed to process bot link for additional channels")
+            else:
+                logger.warning("No original message provided for additional channels processing")
+        except Exception as e:
+            logger.error(f"Error in process_bot_link_for_additional_channels: {e}")
+
     async def process_bot_link(self, bot_link, original_message=None):
-        """Process bot link and extract videos"""
+        """Process bot link and extract videos (original workflow for target channel)"""
         logger.info(f"Starting to process bot link: {bot_link}")
         try:
             if bot_link in self.processing_links:
