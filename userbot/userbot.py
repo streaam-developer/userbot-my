@@ -46,16 +46,32 @@ class UserBot:
     async def join_channel(self, channel_link):
         """Join a channel with error handling and retry mechanism"""
         try:
+            # Extract channel identifier
             if 'joinchat' in channel_link or '/+' in channel_link:
-                invite_hash = channel_link.split('/')[-1].lstrip('+')
-                await client(ImportChatInviteRequest(invite_hash))
+                channel_id = channel_link.split('/')[-1].lstrip('+')
+                is_private = True
             else:
-                channel_username = channel_link.split('/')[-1]
-                await client(JoinChannelRequest(channel_username))
+                channel_id = channel_link.split('/')[-1]
+                is_private = False
+
+            # Check if already joined by trying to get channel info
+            try:
+                if is_private:
+                    # For private channels, we can't easily check without joining
+                    await client(ImportChatInviteRequest(channel_id))
+                else:
+                    # For public channels, check if we're already a member
+                    channel = await client.get_entity(channel_id)
+                    if hasattr(channel, 'left') and channel.left:
+                        await client(JoinChannelRequest(channel_id))
+                    else:
+                        logger.info(f"Already a member of {channel_link}")
+                        return True
+            except UserAlreadyParticipantError:
+                logger.info(f"Already a member of {channel_link}")
+                return True
+
             logger.info(f"Successfully joined channel: {channel_link}")
-            return True
-        except UserAlreadyParticipantError:
-            logger.info(f"Already a member of {channel_link}")
             return True
         except (ChannelPrivateError, InviteHashInvalidError, InviteHashExpiredError) as e:
             logger.error(f"Cannot join channel {channel_link}: {str(e)}")
@@ -136,7 +152,7 @@ class UserBot:
                                 channel_links.append(f"https://t.me/{username}")
 
                         logger.info(f"Found {len(channel_links)} channel links to join: {channel_links}")
-                        joined_any = False
+                        joined_channels = []
                         for channel_link in channel_links:
                             if bot_username.lower() in channel_link.lower():
                                 logger.info(f"Skipping bot link: {channel_link}")
@@ -145,12 +161,12 @@ class UserBot:
                             success = await self.join_channel(channel_link)
                             if success:
                                 logger.info(f"Successfully joined channel: {channel_link}")
-                                joined_any = True
+                                joined_channels.append(channel_link)
                             else:
                                 logger.error(f"Failed to join channel: {channel_link}")
-                            await asyncio.sleep(2)
+                            await asyncio.sleep(5)  # Increased delay to avoid floodwait
 
-                        if joined_any:
+                        if joined_channels:
                             logger.info("Re-sending command after joining channels...")
                             await conv.send_message(bot_command)
                             response = await conv.get_response(timeout=30)
@@ -179,7 +195,7 @@ class UserBot:
                                             additional_bot_links.append(button.url)
                                         else:
                                             logger.warning(f"Skipping non-bot link in button: {button.url}")
-                                    await asyncio.sleep(2)
+                                    await asyncio.sleep(5)  # Increased delay to avoid floodwait
                                 elif hasattr(button, 'data'):
                                     logger.info(f"Clicking inline button with data: {button.data}")
                                     try:
@@ -195,10 +211,14 @@ class UserBot:
                                             else:
                                                 logger.error("Failed to forward video from button response")
 
-                                        await asyncio.sleep(2)
+                                        await asyncio.sleep(5)  # Increased delay to avoid floodwait
+                                    except FloodWaitError as e:
+                                        wait_time = e.seconds
+                                        logger.warning(f"FloodWaitError in initial button click: Must wait {wait_time} seconds")
+                                        await asyncio.sleep(wait_time)
                                     except Exception as e:
                                         logger.error(f"Error clicking button: {e}")
-                                await asyncio.sleep(1)
+                                await asyncio.sleep(3)  # Increased delay to avoid floodwait
 
                     # Continuously monitor conversation for updates and videos
                     max_checks = 10  # Maximum number of checks to avoid infinite loop
@@ -210,7 +230,7 @@ class UserBot:
                         logger.info(f"Check {check_count + 1}/{max_checks}: Monitoring conversation for updates...")
 
                         # Wait a bit for potential updates
-                        await asyncio.sleep(2)
+                        await asyncio.sleep(5)  # Increased delay to avoid floodwait
 
                         # Check if the initial response was edited
                         try:
@@ -231,14 +251,18 @@ class UserBot:
                                                         await self.join_channel(button.url)
                                                     elif 't.me/' in button.url and 'bot' in button.url:
                                                         additional_bot_links.append(button.url)
-                                                    await asyncio.sleep(2)
+                                                    await asyncio.sleep(5)  # Increased delay to avoid floodwait
                                                 elif hasattr(button, 'data'):
                                                     try:
                                                         await response.click(button.data)
                                                         new_response = await conv.get_response(timeout=30)
                                                         if hasattr(new_response, 'video') and new_response.video:
                                                             await self.forward_video(new_response)
-                                                        await asyncio.sleep(2)
+                                                        await asyncio.sleep(5)  # Increased delay to avoid floodwait
+                                                    except FloodWaitError as e:
+                                                        wait_time = e.seconds
+                                                        logger.warning(f"FloodWaitError in edited response: Must wait {wait_time} seconds")
+                                                        await asyncio.sleep(wait_time)
                                                     except Exception as e:
                                                         logger.error(f"Error clicking button in edited response: {e}")
                         except Exception as e:
@@ -271,7 +295,7 @@ class UserBot:
                                                 continue
                                             logger.info(f"Attempting to join channel from update: {channel_link}")
                                             await self.join_channel(channel_link)
-                                            await asyncio.sleep(2)
+                                            await asyncio.sleep(5)  # Increased delay to avoid floodwait
 
                                     # Process buttons in new messages
                                     if hasattr(msg, 'buttons') and msg.buttons:
@@ -290,7 +314,11 @@ class UserBot:
                                                         new_response = await conv.get_response(timeout=30)
                                                         if hasattr(new_response, 'video') and new_response.video:
                                                             await self.forward_video(new_response)
-                                                        await asyncio.sleep(2)
+                                                        await asyncio.sleep(5)  # Increased delay to avoid floodwait
+                                                    except FloodWaitError as e:
+                                                        wait_time = e.seconds
+                                                        logger.warning(f"FloodWaitError in update: Must wait {wait_time} seconds")
+                                                        await asyncio.sleep(wait_time)
                                                     except Exception as e:
                                                         logger.error(f"Error clicking button in update: {e}")
 
@@ -298,7 +326,7 @@ class UserBot:
                                     if hasattr(msg, 'video') and msg.video:
                                         logger.info(f"Found video in new message ID: {msg.id}")
                                         await self.forward_video(msg)
-                                        await asyncio.sleep(1)
+                                        await asyncio.sleep(3)  # Increased delay to avoid floodwait
                             else:
                                 logger.info("No new messages found in this check")
                                 check_count += 1  # Only increment if no new messages
