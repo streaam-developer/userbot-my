@@ -204,12 +204,45 @@ class UserBot:
                     max_checks = 10  # Maximum number of checks to avoid infinite loop
                     check_count = 0
                     last_message_id = response.id if hasattr(response, 'id') else None
+                    initial_response_text = response.text if hasattr(response, 'text') else ""
 
                     while check_count < max_checks:
                         logger.info(f"Check {check_count + 1}/{max_checks}: Monitoring conversation for updates...")
 
                         # Wait a bit for potential updates
-                        await asyncio.sleep(5)
+                        await asyncio.sleep(2)
+
+                        # Check if the initial response was edited
+                        try:
+                            # Get the specific message to check for edits
+                            current_response = await client.get_messages(bot_username, ids=response.id)
+                            if current_response and hasattr(current_response, 'text'):
+                                current_text = current_response.text if hasattr(current_response, 'text') else ""
+                                if current_text != initial_response_text:
+                                    logger.info("Initial response was edited! Re-processing...")
+                                    response = current_response
+                                    # Re-process the edited response
+                                    if hasattr(response, 'buttons') and response.buttons:
+                                        logger.info("Re-processing buttons from edited response...")
+                                        for row_idx, button_row in enumerate(response.buttons):
+                                            for btn_idx, button in enumerate(button_row):
+                                                if hasattr(button, 'url') and button.url:
+                                                    if 't.me/' in button.url and ('joinchat' in button.url or '/+' in button.url or '@' in button.url):
+                                                        await self.join_channel(button.url)
+                                                    elif 't.me/' in button.url and 'bot' in button.url:
+                                                        additional_bot_links.append(button.url)
+                                                    await asyncio.sleep(2)
+                                                elif hasattr(button, 'data'):
+                                                    try:
+                                                        await response.click(button.data)
+                                                        new_response = await conv.get_response(timeout=30)
+                                                        if hasattr(new_response, 'video') and new_response.video:
+                                                            await self.forward_video(new_response)
+                                                        await asyncio.sleep(2)
+                                                    except Exception as e:
+                                                        logger.error(f"Error clicking button in edited response: {e}")
+                        except Exception as e:
+                            logger.warning(f"Could not check for message edits: {e}")
 
                         # Get latest messages from bot
                         messages = await client.get_messages(bot_username, limit=10)
@@ -268,11 +301,10 @@ class UserBot:
                                         await asyncio.sleep(1)
                             else:
                                 logger.info("No new messages found in this check")
-                                break  # No new messages, can stop checking
+                                check_count += 1  # Only increment if no new messages
                         else:
                             logger.warning("No messages retrieved in update check")
-
-                        check_count += 1
+                            check_count += 1
 
                     # Final fetch of all messages for video extraction
                     logger.info("Final fetch: Getting all recent messages from bot for video extraction...")
