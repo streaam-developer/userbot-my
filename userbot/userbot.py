@@ -375,8 +375,8 @@ class UserBot:
         async def handle_new_message(event):
             try:
                 logger.info(f"Received new message: {event.text[:100]}...")
-                # Check if message contains any target bot username OR any Telegram link
-                contains_bot = any(bot.lower() in event.text.lower() for bot in TARGET_BOT_USERNAMES)
+                # Check if message contains any target bot username (with or without @) OR any Telegram link
+                contains_bot = any(bot.strip('@').lower() in event.text.lower() for bot in TARGET_BOT_USERNAMES)
                 links = re.findall(r'https://t\.me/[^\s]+', event.text)
 
                 if contains_bot:
