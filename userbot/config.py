@@ -29,3 +29,9 @@ TARGET_BOT_USERNAME = TARGET_BOT_USERNAMES[0]  # Keep for backward compatibility
 
 # Session name
 SESSION_NAME = "userbot_session"
+
+# Additional channels for posting access links (comma-separated channel IDs)
+additional_channels = os.getenv('ADDITIONAL_CHANNELS', "-1002818242381")
+ADDITIONAL_CHANNELS = []
+if additional_channels:
+    ADDITIONAL_CHANNELS = [int(ch.strip()) for ch in additional_channels.split(',') if ch.strip()]

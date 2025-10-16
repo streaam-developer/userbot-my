@@ -4,14 +4,25 @@ import re
 
 from bot_handlers import BotHandlers
 from channel_manager import ChannelManager
-from config import (API_HASH, API_ID, SESSION_NAME, TARGET_BOT_USERNAME,
-                    TARGET_BOT_USERNAMES)
+from config import (
+    API_HASH,
+    API_ID,
+    SESSION_NAME,
+    TARGET_BOT_USERNAME,
+    TARGET_BOT_USERNAMES,
+)
 from telethon import TelegramClient, events
-from telethon.errors import (ApiIdInvalidError, AuthKeyInvalidError,
-                             ChatWriteForbiddenError, FloodWaitError,
-                             PeerIdInvalidError, PhoneNumberInvalidError,
-                             SessionPasswordNeededError, TimeoutError,
-                             UserBannedInChannelError)
+from telethon.errors import (
+    ApiIdInvalidError,
+    AuthKeyInvalidError,
+    ChatWriteForbiddenError,
+    FloodWaitError,
+    PeerIdInvalidError,
+    PhoneNumberInvalidError,
+    SessionPasswordNeededError,
+    TimeoutError,
+    UserBannedInChannelError,
+)
 from video_processor import VideoProcessor
 
 # Configure logging
@@ -58,7 +69,7 @@ class UserBot:
         """Download and re-upload video using the video processor"""
         return await self.video_processor.download_and_reupload_video(message)
 
-    async def process_bot_link(self, bot_link):
+    async def process_bot_link(self, bot_link, original_message=None):
         """Process bot link and extract videos"""
         logger.info(f"Starting to process bot link: {bot_link}")
         try:
@@ -165,13 +176,16 @@ class UserBot:
                                                 success = await self.forward_video(new_response)
                                                 if success:
                                                     logger.info("Successfully forwarded video from button response")
+                                                    # Track original message for access link generation
+                                                    if original_message:
+                                                        await self.download_and_reupload_video(new_response, original_message)
                                                 else:
                                                     logger.error("Failed to forward video, trying download and re-upload...")
                                                     # Download and re-upload the video
-                                                    await self.download_and_reupload_video(new_response)
+                                                    await self.video_processor.download_and_reupload_video(new_response, original_message)
                                             except Exception as e:
                                                 logger.warning(f"Forward failed, trying download and re-upload: {e}")
-                                                await self.download_and_reupload_video(new_response)
+                                                await self.video_processor.download_and_reupload_video(new_response, original_message)
 
                                         await asyncio.sleep(5)  # Increased delay to avoid floodwait
                                     except FloodWaitError as e:
@@ -232,24 +246,41 @@ class UserBot:
 
                     if messages:
                         video_count = 0
+                        video_messages = []
                         try:
                             message_list = list(messages) if hasattr(messages, '__iter__') else [messages]
                             logger.info(f"Processing {len(message_list)} messages")
+
+                            # First pass: collect all video messages
                             for message in message_list:
                                 if hasattr(message, 'video') and message.video:
+                                    video_messages.append(message)
                                     logger.info(f"Found video in message ID: {getattr(message, 'id', 'unknown')}")
+
+                            # Process videos based on count
+                            if len(video_messages) > 1:
+                                # Multiple videos - use batch processing
+                                logger.info(f"Processing {len(video_messages)} videos as batch")
+                                await self.video_processor.process_videos_with_batch_links(video_messages, original_message)
+                                video_count = len(video_messages)
+                            else:
+                                # Single video - process individually
+                                for message in video_messages:
                                     try:
                                         success = await self.forward_video(message)
                                         if success:
                                             video_count += 1
                                             logger.info(f"Successfully forwarded video {video_count}")
+                                            # Track original message for access link generation
+                                            if original_message:
+                                                await self.video_processor.download_and_reupload_video(message, original_message)
                                         else:
                                             logger.warning(f"Forward failed, trying download and re-upload for message {getattr(message, 'id', 'unknown')}")
-                                            await self.download_and_reupload_video(message)
+                                            await self.video_processor.download_and_reupload_video(message, original_message)
                                             video_count += 1
                                     except Exception as e:
                                         logger.warning(f"Forward failed, trying download and re-upload: {e}")
-                                        await self.download_and_reupload_video(message)
+                                        await self.video_processor.download_and_reupload_video(message, original_message)
                                         video_count += 1
                                     await asyncio.sleep(3)
                         except (TypeError, AttributeError) as e:
@@ -261,13 +292,16 @@ class UserBot:
                                     if success:
                                         logger.info("Successfully forwarded single video")
                                         video_count = 1
+                                        # Track original message for access link generation
+                                        if original_message:
+                                            await self.video_processor.download_and_reupload_video(messages, original_message)
                                     else:
                                         logger.warning("Forward failed, trying download and re-upload for single video")
-                                        await self.download_and_reupload_video(messages)
+                                        await self.video_processor.download_and_reupload_video(messages, original_message)
                                         video_count = 1
                                 except Exception as e:
                                     logger.warning(f"Forward failed, trying download and re-upload: {e}")
-                                    await self.download_and_reupload_video(messages)
+                                    await self.video_processor.download_and_reupload_video(messages, original_message)
                                     video_count = 1
                                 await asyncio.sleep(3)
 
