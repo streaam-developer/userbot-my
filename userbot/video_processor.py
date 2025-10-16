@@ -31,15 +31,42 @@ class VideoProcessor:
     async def forward_video(self, message, retry_count=0):
         """Forward video to target channel with error handling"""
         try:
+            logger.info(f"forward_video called with message: {message}")
+            logger.info(f"Message type: {type(message)}")
+            logger.info(f"Message ID: {getattr(message, 'id', 'NO_ID')}")
+            logger.info(f"Has video attribute: {hasattr(message, 'video')}")
+
+            if not message:
+                logger.error("Message is None in forward_video")
+                return False
+
+            if not hasattr(message, 'video') or not message.video:
+                logger.error("Message has no video attribute or video is None")
+                return False
+
             # Try to forward first, if it fails, use download and re-upload
             try:
-                await self.client.send_file(TARGET_CHANNEL_ID, message)
-                return True
+                logger.info(f"Attempting to forward video to channel {TARGET_CHANNEL_ID}")
+                forward_result = await self.client.send_file(TARGET_CHANNEL_ID, message)
+
+                logger.info(f"Forward result: {forward_result}")
+                logger.info(f"Forward result type: {type(forward_result)}")
+
+                if forward_result and hasattr(forward_result, 'id'):
+                    logger.info(f"Forward successful with ID: {forward_result.id}")
+                    return True
+                else:
+                    logger.warning(f"Forward returned invalid result: {forward_result}")
+                    logger.warning("Using download and re-upload instead...")
+                    return await self.download_and_reupload_video(message)
+
             except Exception as e:
                 logger.warning(f"Forward failed: {e}, using download and re-upload...")
+                logger.warning(f"Exception type: {type(e)}")
                 return await self.download_and_reupload_video(message)
         except Exception as e:
-            logger.error(f"Error in video processing: {str(e)}")
+            logger.error(f"Error in forward_video: {e}")
+            logger.error(f"Message: {message}")
             return False
 
     def add_additional_channel(self, channel_id):
@@ -304,10 +331,32 @@ class VideoProcessor:
         """Download video and re-upload to target channel preserving original format"""
         try:
             logger.info("Downloading video for re-upload...")
+            logger.info(f"Message has media: {hasattr(message, 'video')}")
+            logger.info(f"Message video: {getattr(message, 'video', 'NO_VIDEO')}")
+
             # Download the video with original attributes
-            video_path = await message.download_media()
+            try:
+                video_path = await message.download_media()
+                logger.info(f"Download result: {video_path}")
+                logger.info(f"Download result type: {type(video_path)}")
+
+                if not video_path:
+                    logger.error("Download returned None or empty path")
+                    return False
+
+                if not os.path.exists(video_path):
+                    logger.error(f"Downloaded file does not exist at path: {video_path}")
+                    return False
+
+                file_size = os.path.getsize(video_path)
+                logger.info(f"Downloaded video to: {video_path} (Size: {file_size} bytes)")
+
+            except Exception as e:
+                logger.error(f"Error downloading video: {e}")
+                logger.error(f"Message: {message}")
+                return False
+
             if video_path:
-                logger.info(f"Downloaded video to: {video_path}")
 
                 # Prepare upload attributes to preserve original video properties
                 upload_kwargs = {}
@@ -327,28 +376,60 @@ class VideoProcessor:
                 caption = getattr(message, 'text', None) or getattr(message, 'caption', None) or ""
 
                 # Upload to target channel preserving original format
-                uploaded_message = await self.client.send_file(
-                    TARGET_CHANNEL_ID,
-                    video_path,
-                    caption=caption,
-                    **upload_kwargs
-                )
+                logger.info(f"Uploading video to channel {TARGET_CHANNEL_ID}")
+                logger.info(f"Video path: {video_path}")
+                logger.info(f"Caption: {caption}")
+                logger.info(f"Upload kwargs: {upload_kwargs}")
 
-                # Check if upload was successful and message has ID
-                if not uploaded_message:
-                    logger.error("Uploaded message is None - upload failed completely")
+                try:
+                    uploaded_message = await self.client.send_file(
+                        TARGET_CHANNEL_ID,
+                        video_path,
+                        caption=caption,
+                        **upload_kwargs
+                    )
+
+                    logger.info(f"Upload result type: {type(uploaded_message)}")
+                    logger.info(f"Upload result: {uploaded_message}")
+
+                    # Check if upload was successful and message has ID
+                    if not uploaded_message:
+                        logger.error("Uploaded message is None - upload failed completely")
+                        return False
+
+                    if not hasattr(uploaded_message, 'id'):
+                        logger.error(f"Uploaded message has no 'id' attribute. Type: {type(uploaded_message)}")
+                        logger.error(f"Uploaded message content: {uploaded_message}")
+                        logger.error(f"Available attributes: {dir(uploaded_message)}")
+                        return False
+
+                    if uploaded_message.id is None:
+                        logger.error("Uploaded message ID is None")
+                        logger.error(f"uploaded_message.id: {uploaded_message.id}")
+                        return False
+
+                    logger.info(f"Successfully re-uploaded video with ID: {uploaded_message.id}")
+
+                except Exception as e:
+                    logger.error(f"Error during video upload: {e}")
+                    logger.error(f"Upload parameters - Channel: {TARGET_CHANNEL_ID}, Path: {video_path}")
+                    logger.error(f"Caption length: {len(caption) if caption else 0}")
+                    logger.error(f"Upload kwargs keys: {list(upload_kwargs.keys())}")
                     return False
 
-                if not hasattr(uploaded_message, 'id'):
-                    logger.error(f"Uploaded message has no 'id' attribute. Type: {type(uploaded_message)}")
-                    logger.error(f"Uploaded message content: {uploaded_message}")
-                    return False
-
-                if uploaded_message.id is None:
-                    logger.error("Uploaded message ID is None")
-                    return False
-
-                logger.info(f"Successfully re-uploaded video with ID: {uploaded_message.id}")
+                # Verify the uploaded message exists and is accessible
+                try:
+                    logger.info(f"Verifying uploaded message with ID: {uploaded_message.id}")
+                    # Try to get the message back to verify it was uploaded correctly
+                    verified_message = await self.client.get_messages(TARGET_CHANNEL_ID, ids=[uploaded_message.id])
+                    if verified_message and len(verified_message) > 0:
+                        verified_msg = verified_message[0]
+                        logger.info(f"Verified uploaded message: {getattr(verified_msg, 'id', 'NO_ID')}")
+                        logger.info(f"Verified message has video: {hasattr(verified_msg, 'video')}")
+                    else:
+                        logger.warning("Could not verify uploaded message")
+                except Exception as e:
+                    logger.warning(f"Could not verify uploaded message: {e}")
 
                 # Generate access link for single video (only if message has valid ID)
                 access_link = None

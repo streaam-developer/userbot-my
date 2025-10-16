@@ -192,7 +192,12 @@ class UserBot:
                                         logger.info(f"Received response after button click: {new_response.text[:200]}...")
 
                                         # Check if video is forwardable, if not, download and re-upload
-                                        if hasattr(new_response, 'video') and new_response.video:
+                                        logger.info(f"Checking new_response for video: {new_response}")
+                                        logger.info(f"new_response type: {type(new_response)}")
+                                        logger.info(f"new_response has video: {hasattr(new_response, 'video')}")
+                                        logger.info(f"new_response.video: {getattr(new_response, 'video', 'NO_VIDEO')}")
+
+                                        if new_response and hasattr(new_response, 'video') and new_response.video:
                                             logger.info(f"Found video in button click response, ID: {getattr(new_response, 'id', 'NO_ID')}")
                                             try:
                                                 # Try to forward first
@@ -282,6 +287,11 @@ class UserBot:
                     logger.info("Final fetch: Getting all recent messages from bot for video extraction...")
                     messages = await client.get_messages(bot_username, limit=50)
                     logger.info(f"Retrieved messages from bot (type: {type(messages)})")
+                    logger.info(f"Messages content: {messages}")
+
+                    if not messages:
+                        logger.warning("No messages retrieved from bot")
+                        messages = []
 
                     if messages:
                         video_count = 0
@@ -292,9 +302,16 @@ class UserBot:
 
                             # First pass: collect all video messages
                             for message in message_list:
-                                if hasattr(message, 'video') and message.video:
+                                logger.info(f"Checking message: {message}")
+                                logger.info(f"Message type: {type(message)}")
+                                logger.info(f"Message has video attr: {hasattr(message, 'video')}")
+                                logger.info(f"Message video value: {getattr(message, 'video', 'NO_VIDEO')}")
+
+                                if message and hasattr(message, 'video') and message.video:
                                     video_messages.append(message)
                                     logger.info(f"Found video in message ID: {getattr(message, 'id', 'unknown')}")
+                                else:
+                                    logger.warning(f"Message {getattr(message, 'id', 'unknown')} has no video or is None")
 
                             # Process videos based on count
                             if len(video_messages) > 1:
