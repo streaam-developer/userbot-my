@@ -51,6 +51,7 @@ class UserBot:
         self.processing_links = set()
         self.processed_links = set()  # Track links that have been successfully processed
         self.processed_video_file_ids = set()
+        self.link_to_access_map = {}  # Map bot links to their generated access links
 
         # Initialize helper classes
         self.bot_handlers = BotHandlers(self)

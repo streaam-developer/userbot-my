@@ -131,6 +131,10 @@ class VideoProcessor:
 
                 logger.info(f"Generated access link for video {f_msg_id}: {link}")
 
+                # Store the mapping for later retrieval
+                # Note: This is a simple implementation. In production, you'd want to map the original bot link to this access link
+                self.client._userbot.link_to_access_map['latest'] = link
+
                 # Clean up downloaded file
                 try:
                     os.remove(video_path)
