@@ -1,12 +1,16 @@
 import asyncio
 import logging
-import os
 import re
-import sys
 
-# Add the current directory to Python path so imports work when running as script
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
+from bot_handlers import BotHandlers
+from channel_manager import ChannelManager
+from config import (
+    API_HASH,
+    API_ID,
+    SESSION_NAME,
+    TARGET_BOT_USERNAME,
+    TARGET_BOT_USERNAMES,
+)
 from telethon import TelegramClient, events
 from telethon.errors import (
     ApiIdInvalidError,
@@ -19,11 +23,7 @@ from telethon.errors import (
     TimeoutError,
     UserBannedInChannelError,
 )
-
-from .bot_handlers import *
-from .channel_manager import *
-from .config import API_HASH, API_ID, SESSION_NAME, TARGET_BOT_USERNAME
-from .video_processor import VideoProcessor
+from video_processor import VideoProcessor
 
 # Configure logging
 logging.basicConfig(
@@ -47,7 +47,6 @@ client = TelegramClient(SESSION_NAME, int(API_ID), API_HASH)
 
 class UserBot:
     def __init__(self):
-        self.client = client
         self.processing_links = set()
         self.processed_links = set()  # Track links that have been successfully processed
         self.processed_video_file_ids = set()
@@ -70,21 +69,21 @@ class UserBot:
         return await self.video_processor.download_and_reupload_video(message)
 
     async def process_bot_link(self, bot_link):
-        """Process bot link and extract videos, returning the new link"""
+        """Process bot link and extract videos"""
         logger.info(f"Starting to process bot link: {bot_link}")
         try:
             if bot_link in self.processed_links:
                 logger.info(f"Link {bot_link} has already been successfully processed, skipping")
-                return None
+                return
 
             if bot_link in self.processing_links:
                 logger.info(f"Link {bot_link} is already being processed, skipping")
-                return None
+                return
 
             self.processing_links.add(bot_link)
             logger.info(f"Added {bot_link} to processing set. Current processing: {len(self.processing_links)}")
             additional_bot_links = []
-            new_link = None
+            videos_found = False  # Flag to stop processing once videos are found
             try:
                 # Extract bot username from the link
                 bot_username_match = re.search(r't\.me/([a-zA-Z0-9_]+bot)', bot_link)
@@ -149,7 +148,6 @@ class UserBot:
                         logger.info(f"Found {len(response.buttons)} button rows, clicking buttons to get more content...")
                         for row_idx, button_row in enumerate(response.buttons):
                             for btn_idx, button in enumerate(button_row):
-                                if new_link: break
                                 if hasattr(button, 'url') and button.url:
                                     logger.info(f"Processing button URL: {button.url}")
                                     if 't.me/' in button.url and ('joinchat' in button.url or '/+' in button.url or '@' in button.url):
@@ -181,10 +179,27 @@ class UserBot:
                                                 logger.info(f"Video with file_id {video_file_id} has already been processed, skipping.")
                                                 continue
                                             logger.info("Found video in button click response")
-                                            new_link = await self.download_and_reupload_video(new_response)
-                                            if new_link:
+                                            try:
+                                                # Try to forward first
+                                                success = await self.forward_video(new_response)
+                                                if success:
+                                                    logger.info("Successfully forwarded video from button response")
+                                                    self.processed_video_file_ids.add(video_file_id)
+                                                    videos_found = True
+                                                    break  # Stop processing more buttons once video is found
+                                                else:
+                                                    logger.error("Failed to forward video, trying download and re-upload...")
+                                                    # Download and re-upload the video
+                                                    await self.download_and_reupload_video(new_response)
+                                                    self.processed_video_file_ids.add(video_file_id)
+                                                    videos_found = True
+                                                    break  # Stop processing more buttons once video is found
+                                            except Exception as e:
+                                                logger.warning(f"Forward failed, trying download and re-upload: {e}")
+                                                await self.download_and_reupload_video(new_response)
                                                 self.processed_video_file_ids.add(video_file_id)
-                                                break
+                                                videos_found = True
+                                                break  # Stop processing more buttons once video is found
 
                                         await asyncio.sleep(5)  # Increased delay to avoid floodwait
                                     except FloodWaitError as e:
@@ -193,37 +208,130 @@ class UserBot:
                                         await asyncio.sleep(wait_time)
                                     except Exception as e:
                                         logger.error(f"Error clicking button: {e}")
-                            if new_link: break
+                                    if videos_found:
+                                        break  # Break out of button row loop
+                                if videos_found:
+                                    break  # Break out of button rows loop
+                                await asyncio.sleep(3)  # Increased delay to avoid floodwait
+
+                    # Check for message edits and process updated content only once after channels are joined
+                    initial_response_text = response.text if hasattr(response, 'text') else ""
+                    await asyncio.sleep(3)  # Brief wait for potential edits
+
+                    # Check if the initial response was edited
+                    try:
+                        current_response = await client.get_messages(bot_username, ids=response.id)
+                        if current_response and hasattr(current_response, 'text'):
+                            current_text = current_response.text if hasattr(current_response, 'text') else ""
+                            if current_text != initial_response_text:
+                                logger.info("Initial response was edited! Processing updated content...")
+                                response = current_response
+                                # Process buttons from edited response
+                                if hasattr(response, 'buttons') and response.buttons:
+                                    logger.info("Processing buttons from edited response...")
+                                    for row_idx, button_row in enumerate(response.buttons):
+                                        for btn_idx, button in enumerate(button_row):
+                                            if hasattr(button, 'url') and button.url:
+                                                if 't.me/' in button.url and ('joinchat' in button.url or '/+' in button.url or '@' in button.url):
+                                                    await self.join_channel(button.url)
+                                                # Skip URL buttons that contain video-related links, only process target bot links
+                                                elif 't.me/' in button.url and 'bot' in button.url and any(bot.strip('@').lower() in button.url.lower() for bot in TARGET_BOT_USERNAMES):
+                                                    additional_bot_links.append(button.url)
+                                                await asyncio.sleep(5)
+                                            elif hasattr(button, 'data'):
+                                                try:
+                                                    await response.click(button.data)
+                                                    new_response = await conv.get_response(timeout=30)
+                                                    if hasattr(new_response, 'video') and new_response.video:
+                                                        video_file_id = (new_response.video.id, new_response.video.size)
+                                                        if video_file_id in self.processed_video_file_ids:
+                                                            logger.info(f"Video with file_id {video_file_id} has already been processed, skipping.")
+                                                            continue
+                                                        await self.forward_video(new_response)
+                                                        self.processed_video_file_ids.add(video_file_id)
+                                                    await asyncio.sleep(5)
+                                                except FloodWaitError as e:
+                                                    wait_time = e.seconds
+                                                    logger.warning(f"FloodWaitError in edited response: Must wait {wait_time} seconds")
+                                                    await asyncio.sleep(wait_time)
+                                                except Exception as e:
+                                                    logger.error(f"Error clicking button in edited response: {e}")
+                    except Exception as e:
+                        logger.warning(f"Could not check for message edits: {e}")
 
                     # Get latest messages for video extraction only once
-                    if not new_link:
+                    if not videos_found:
                         messages = await client.get_messages(bot_username, limit=20)
+
+                        # Final fetch of all messages for video extraction
+                        logger.info("Final fetch: Getting all recent messages from bot for video extraction...")
+                        messages = await client.get_messages(bot_username, limit=50)
                         logger.info(f"Retrieved messages from bot (type: {type(messages)})")
-
-                        if messages:
-                            try:
-                                message_list = list(messages) if hasattr(messages, '__iter__') else [messages]
-                                logger.info(f"Processing {len(message_list)} messages")
-                                for message in message_list:
-                                    if hasattr(message, 'video') and message.video:
-                                        video_file_id = (message.video.id, message.video.size)
-                                        if video_file_id in self.processed_video_file_ids:
-                                            logger.info(f"Video with file_id {video_file_id} has already been processed, skipping.")
-                                            continue
-                                        logger.info(f"Found video in message ID: {getattr(message, 'id', 'unknown')}")
-                                        new_link = await self.download_and_reupload_video(message)
-                                        if new_link:
-                                            self.processed_video_file_ids.add(video_file_id)
-                                            break
-                                        await asyncio.sleep(3)
-                            except (TypeError, AttributeError) as e:
-                                logger.warning(f"Could not iterate messages, trying single message approach: {e}")
-
-                    if new_link:
-                        self.processed_links.add(bot_link)
-                        logger.info(f"Added {bot_link} to processed links set")
                     else:
-                        logger.warning("No messages retrieved from bot or no video found")
+                        messages = None
+                        logger.info("Skipping message fetch since videos were already found in button responses")
+
+                    if messages:
+                        video_count = 0
+                        try:
+                            message_list = list(messages) if hasattr(messages, '__iter__') else [messages]
+                            logger.info(f"Processing {len(message_list)} messages")
+                            for message in message_list:
+                                if hasattr(message, 'video') and message.video:
+                                    video_file_id = (message.video.id, message.video.size)
+                                    if video_file_id in self.processed_video_file_ids:
+                                        logger.info(f"Video with file_id {video_file_id} has already been processed, skipping.")
+                                        continue
+                                    logger.info(f"Found video in message ID: {getattr(message, 'id', 'unknown')}")
+                                    try:
+                                        success = await self.forward_video(message)
+                                        if success:
+                                            video_count += 1
+                                            self.processed_video_file_ids.add(video_file_id)
+                                            logger.info(f"Successfully forwarded video {video_count}")
+                                        else:
+                                            logger.warning(f"Forward failed, trying download and re-upload for message {getattr(message, 'id', 'unknown')}")
+                                            await self.download_and_reupload_video(message)
+                                            self.processed_video_file_ids.add(video_file_id)
+                                            video_count += 1
+                                    except Exception as e:
+                                        logger.warning(f"Forward failed, trying download and re-upload: {e}")
+                                        await self.download_and_reupload_video(message)
+                                        self.processed_video_file_ids.add(video_file_id)
+                                        video_count += 1
+                                    await asyncio.sleep(3)
+                        except (TypeError, AttributeError) as e:
+                            logger.warning(f"Could not iterate messages, trying single message approach: {e}")
+                            if hasattr(messages, 'video') and messages.video:
+                                video_file_id = (messages.video.id, messages.video.size)
+                                if video_file_id in self.processed_video_file_ids:
+                                    logger.info(f"Video with file_id {video_file_id} has already been processed, skipping.")
+                                else:
+                                    logger.info(f"Found single video message ID: {getattr(messages, 'id', 'unknown')}")
+                                    try:
+                                        success = await self.forward_video(messages)
+                                        if success:
+                                            logger.info("Successfully forwarded single video")
+                                            self.processed_video_file_ids.add(video_file_id)
+                                            video_count = 1
+                                        else:
+                                            logger.warning("Forward failed, trying download and re-upload for single video")
+                                            await self.download_and_reupload_video(messages)
+                                            self.processed_video_file_ids.add(video_file_id)
+                                            video_count = 1
+                                    except Exception as e:
+                                        logger.warning(f"Forward failed, trying download and re-upload: {e}")
+                                        await self.download_and_reupload_video(messages)
+                                        self.processed_video_file_ids.add(video_file_id)
+                                        video_count = 1
+                                    await asyncio.sleep(3)
+
+                        logger.info(f"Total videos processed and forwarded: {video_count}")
+                        if video_count > 0:
+                            self.processed_links.add(bot_link)
+                            logger.info(f"Added {bot_link} to processed links set")
+                    else:
+                        logger.warning("No messages retrieved from bot")
 
             finally:
                 self.processing_links.remove(bot_link)
@@ -233,8 +341,6 @@ class UserBot:
                 for additional_link in additional_bot_links:
                     logger.info(f"Processing additional bot link: {additional_link}")
                     await self.process_bot_link(additional_link)
-            
-            return new_link
 
         except (AuthKeyInvalidError, SessionPasswordNeededError,
                 PhoneNumberInvalidError, ApiIdInvalidError) as e:
@@ -248,8 +354,6 @@ class UserBot:
             logger.error(f"Access error processing bot link {bot_link}: {str(e)}")
         except Exception as e:
             logger.error(f"Unexpected error processing bot link {bot_link}: {str(e)}")
-        
-        return None
 
     async def start(self):
         """Start the userbot"""

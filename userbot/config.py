@@ -24,7 +24,7 @@ if not target_channel_id:
 TARGET_CHANNEL_ID = int(target_channel_id)
 
 # Bot usernames to monitor (configurable via env, comma-separated)
-TARGET_BOT_USERNAMES = os.getenv('TARGET_BOT_USERNAMES', '@Amazon_sharebot,@Dairy_share2bot,@quality_filesbot,@File_extractorbot,@Flipkart_filebot,@Kitkat_sharebot,@Unfiltered_filebot,@Desiiihub_bot,@Sanzzyyyyyfree_bot').split(',')
+TARGET_BOT_USERNAMES = os.getenv('TARGET_BOT_USERNAMES', '@Dairy_share2bot,@quality_filesbot,@File_extractorbot,@Flipkart_filebot,@Kitkat_sharebot,@Unfiltered_filebot,@Desiiihub_bot,@Sanzzyyyyyfree_bot').split(',')
 TARGET_BOT_USERNAME = TARGET_BOT_USERNAMES[0]  # Keep for backward compatibility
 
 # Session name
@@ -32,11 +32,3 @@ SESSION_NAME = "userbot_session"
 
 # For link generation
 FILE_STORE_CHANNEL = [TARGET_CHANNEL_ID]
-
-# MongoDB Configuration
-MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://sonukumarkrbbu60:lfkTvljnt25ehTt9@cluster0.2wrbftx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
-MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "userbot_db")
-
-# Feature Toggles
-ENABLE_DB_CHECK = os.getenv("ENABLE_DB_CHECK", "True").lower() == "true"
-ENABLE_DB_UPDATE = os.getenv("ENABLE_DB_UPDATE", "True").lower() == "true"
