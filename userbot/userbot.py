@@ -53,12 +53,13 @@ class UserBot:
         # Initialize database
         self.db_manager = DatabaseManager(MONGODB_URI, DATABASE_NAME)
         self.processing_links = set()
+        self.processed_video_file_ids = set()
 
         # Initialize helper classes with database support
         self.bot_handlers = BotHandlers(self)
         self.video_processor = VideoProcessor(client, self.db_manager)
         self.channel_manager = ChannelManager(client)
-        
+
         logger.info("Initialized UserBot with MongoDB support")
 
     async def join_channel(self, channel_link):
@@ -204,7 +205,7 @@ class UserBot:
 
                                         # Check if video is forwardable, if not, download and re-upload
                                         if hasattr(new_response, 'video') and new_response.video:
-                                            video_file_id = (new_response.video.id, new_response.video.size)
+                                            video_file_id = str(new_response.video.id)
                                             if video_file_id in self.processed_video_file_ids:
                                                 logger.info(f"Video with file_id {video_file_id} has already been processed, skipping.")
                                                 continue
@@ -353,7 +354,7 @@ class UserBot:
                         except (TypeError, AttributeError) as e:
                             logger.warning(f"Could not iterate messages, trying single message approach: {e}")
                             if hasattr(messages, 'video') and messages.video:
-                                video_file_id = (messages.video.id, messages.video.size)
+                                video_file_id = str(messages.video.id)
                                 if video_file_id in self.processed_video_file_ids:
                                     logger.info(f"Video with file_id {video_file_id} has already been processed, skipping.")
                                 else:
