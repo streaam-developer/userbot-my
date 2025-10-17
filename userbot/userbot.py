@@ -89,7 +89,7 @@ class UserBot:
                 existing = await self.db_manager.get_processed_link(bot_link)
                 if existing:
                     logger.info(f"Link already processed in DB: {bot_link} -> {existing['new_link']}")
-                    return existing['new_link']
+                    return [existing['new_link']]
             except Exception as e:
                 logger.error(f"Error checking MongoDB: {str(e)}")
                 # Continue processing even if DB check fails
