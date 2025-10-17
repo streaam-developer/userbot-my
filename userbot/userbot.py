@@ -310,10 +310,6 @@ class UserBot:
                     # Get latest messages for video extraction only once
                     if not videos_found:
                         messages = await client.get_messages(bot_username, limit=20)
-
-                        # Final fetch of all messages for video extraction
-                        logger.info("Final fetch: Getting all recent messages from bot for video extraction...")
-                        messages = await client.get_messages(bot_username, limit=50)
                         logger.info(f"Retrieved messages from bot (type: {type(messages)})")
                     else:
                         messages = None
@@ -347,6 +343,7 @@ class UserBot:
                                             processed_video_ids.add(video_file_id)
                                             logger.info(f"Successfully processed video {video_count}")
                                             videos_found = True
+                                            break  # Stop processing more messages after first video
                                         else:
                                             logger.warning(f"Initial forward failed, trying alternate method for message {getattr(message, 'id', 'unknown')}")
                                             access_link = await self.download_and_reupload_video(message)
@@ -355,6 +352,7 @@ class UserBot:
                                                 access_links.append(access_link)
                                                 processed_video_ids.add(video_file_id)
                                                 videos_found = True
+                                                break  # Stop processing more messages after first video
                                     except Exception as e:
                                         logger.error(f"Error processing video {video_file_id}: {str(e)}")
                                     await asyncio.sleep(3)
