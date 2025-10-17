@@ -288,7 +288,7 @@ class UserBot:
                                                                 continue
 
                                                             # Process the video if not found in DB
-                                                            access_link = await self.forward_video(new_response, video_file_id)
+                                                            access_link = await self.forward_video(new_response)
                                                             if access_link:
                                                                 logger.info(f"Successfully processed video {video_file_id} -> {access_link}")
                                                                 access_links.append(access_link)
@@ -334,7 +334,7 @@ class UserBot:
                                             continue
 
                                         logger.info(f"Found new video in message ID: {getattr(message, 'id', 'unknown')}")
-                                        access_link = await self.forward_video(message, video_file_id)
+                                        access_link = await self.forward_video(message)
                                         if access_link:
                                             video_count += 1
                                             access_links.append(access_link)
@@ -342,7 +342,7 @@ class UserBot:
                                             videos_found = True
                                         else:
                                             logger.warning(f"Initial forward failed, trying alternate method for message {getattr(message, 'id', 'unknown')}")
-                                            access_link = await self.download_and_reupload_video(message, video_file_id)
+                                            access_link = await self.download_and_reupload_video(message)
                                             if access_link:
                                                 video_count += 1
                                                 access_links.append(access_link)
