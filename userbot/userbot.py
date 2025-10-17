@@ -4,12 +4,15 @@ import re
 
 from bot_handlers import BotHandlers
 from channel_manager import ChannelManager
+from db_manager import DatabaseManager
 from config import (
     API_HASH,
     API_ID,
     SESSION_NAME,
     TARGET_BOT_USERNAME,
     TARGET_BOT_USERNAMES,
+    MONGODB_URI,
+    DATABASE_NAME,
 )
 from telethon import TelegramClient, events
 from telethon.errors import (
@@ -47,14 +50,16 @@ client = TelegramClient(SESSION_NAME, int(API_ID), API_HASH)
 
 class UserBot:
     def __init__(self):
+        # Initialize database
+        self.db_manager = DatabaseManager(MONGODB_URI, DATABASE_NAME)
         self.processing_links = set()
-        self.processed_links = set()  # Track links that have been successfully processed
-        self.processed_video_file_ids = set()
 
-        # Initialize helper classes
+        # Initialize helper classes with database support
         self.bot_handlers = BotHandlers(self)
-        self.video_processor = VideoProcessor(client)
+        self.video_processor = VideoProcessor(client, self.db_manager)
         self.channel_manager = ChannelManager(client)
+        
+        logger.info("Initialized UserBot with MongoDB support")
 
     async def join_channel(self, channel_link):
         """Join a channel using the channel manager"""
@@ -69,12 +74,21 @@ class UserBot:
         return await self.video_processor.download_and_reupload_video(message)
 
     async def process_bot_link(self, bot_link):
-        """Process bot link and extract videos, return access link if generated"""
+        """Process bot link and extract videos with MongoDB tracking"""
         logger.info(f"Starting to process bot link: {bot_link}")
         try:
-            if bot_link in self.processed_links:
-                logger.info(f"Link {bot_link} has already been successfully processed, skipping")
+            # Check if link was already processed in MongoDB
+            existing = await self.db_manager.get_processed_link(bot_link)
+            if existing:
+                logger.info(f"Link {bot_link} was already processed. Returning cached link: {existing['new_link']}")
+                return existing['new_link']
+            
+            # Check if link is currently being processed
+            if bot_link in self.processing_links:
+                logger.info(f"Link {bot_link} is currently being processed, skipping")
                 return None
+                
+            self.processing_links.add(bot_link)
 
             if bot_link in self.processing_links:
                 logger.info(f"Link {bot_link} is already being processed, skipping")
@@ -249,13 +263,16 @@ class UserBot:
                                                     await response.click(button.data)
                                                     new_response = await conv.get_response(timeout=30)
                                                     if hasattr(new_response, 'video') and new_response.video:
-                                                        video_file_id = (new_response.video.id, new_response.video.size)
-                                                        if video_file_id in self.processed_video_file_ids:
-                                                            logger.info(f"Video with file_id {video_file_id} has already been processed, skipping.")
+                                                        video_file_id = str(new_response.video.id)
+                                                        # Check in MongoDB for processed video
+                                                        video_doc = await self.db_manager.get_processed_link(video_file_id)
+                                                        if video_doc:
+                                                            logger.info(f"Video {video_file_id} already processed, using cached link")
+                                                            access_links.append(video_doc['new_link'])
                                                             continue
-                                                        access_link = await self.forward_video(new_response)
+                                                            
+                                                        access_link = await self.forward_video(new_response, video_file_id)
                                                         if access_link:
-                                                            self.processed_video_file_ids.add(video_file_id)
                                                             access_links.append(access_link)
                                                     await asyncio.sleep(5)
                                                 except FloodWaitError as e:

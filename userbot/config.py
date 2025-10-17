@@ -17,6 +17,10 @@ if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN must be set in environment variables")
 
 
+# MongoDB Configuration
+MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb+srv://sonukumarkrbbu60:lfkTvljnt25ehTt9@cluster0.2wrbftx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
+DATABASE_NAME = os.getenv('DATABASE_NAME', 'userbot_db')
+
 # Target Channel ID where videos will be forwarded
 target_channel_id = os.getenv('TARGET_CHANNEL_ID', "-1002818242381")
 if not target_channel_id:
