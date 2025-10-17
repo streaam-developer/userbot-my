@@ -45,24 +45,21 @@ class BotHandlers:
                         else:
                             logger.info(f"Skipping non-target link: {link}")
 
-                # Process multiple target links concurrently
+                # Process multiple target links sequentially
                 link_replacements = {}
                 if target_links:
-                    logger.info(f"Processing {len(target_links)} links concurrently")
-                    # Create tasks for concurrent processing
-                    tasks = [self.userbot.process_bot_link(link) for link in target_links]
-                    results = await asyncio.gather(*tasks, return_exceptions=True)
-
-                    # Process results
-                    for link, result in zip(target_links, results):
-                        if isinstance(result, Exception):
-                            logger.error(f"Error processing link {link}: {result}")
+                    logger.info(f"Processing {len(target_links)} links sequentially")
+                    for link in target_links:
+                        try:
+                            result = await self.userbot.process_bot_link(link)
+                            if result:
+                                # Assuming one access link per bot link for simplicity
+                                link_replacements[link] = result[0] if result else link
+                            else:
+                                link_replacements[link] = link  # Keep original if no result
+                        except Exception as e:
+                            logger.error(f"Error processing link {link}: {e}")
                             link_replacements[link] = link  # Keep original link on error
-                        elif result:
-                            # Assuming one access link per bot link for simplicity
-                            link_replacements[link] = result[0] if result else link
-                        else:
-                            link_replacements[link] = link  # Keep original if no result
 
                 # Replace original links with access links in the forwarded message
                 if link_replacements:
