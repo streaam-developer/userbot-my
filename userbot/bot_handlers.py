@@ -1,6 +1,7 @@
 """
 Bot message handlers and event processing functions
 """
+import asyncio
 import logging
 import re
 

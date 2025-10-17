@@ -2,7 +2,15 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from pymongo import MongoClient
+
+# MongoDB setup with error handling
+try:
+    from pymongo import MongoClient
+    MONGODB_AVAILABLE = True
+except ImportError:
+    print("Warning: pymongo not available. Running without MongoDB support.")
+    MONGODB_AVAILABLE = False
+    MongoClient = None
 
 logger = logging.getLogger(__name__)
 
