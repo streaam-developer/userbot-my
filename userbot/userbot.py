@@ -81,14 +81,11 @@ class UserBot:
         """Process bot link and extract videos, return access link if generated"""
         logger.info(f"Starting to process bot link: {bot_link}")
         try:
-            # Check if link is already processed in MongoDB (if available)
-            if MONGODB_AVAILABLE and self.links_collection is not None:
-                existing_link = self.links_collection.find_one({"original_link": bot_link, "status": "processed"})
-                if existing_link:
-                    logger.info(f"Link {bot_link} has already been successfully processed, skipping")
-                    return existing_link.get("access_links", [])
+            # Process all links regardless of previous processing status
+            # (Removed check for already processed links to allow re-processing)
 
-                # Check if link is currently being processed
+            # Check if link is currently being processed
+            if MONGODB_AVAILABLE and self.processing_collection is not None:
                 processing_doc = self.processing_collection.find_one({"link": bot_link})
                 if processing_doc:
                     logger.info(f"Link {bot_link} is already being processed, skipping")
