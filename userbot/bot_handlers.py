@@ -52,14 +52,19 @@ class BotHandlers:
                     if access_links:
                         # Assuming one access link per bot link for simplicity
                         link_replacements[link] = access_links[0] if access_links else link
+                    else:
+                        logger.info(f"No access links generated for {link}, keeping original")
 
                 # Replace original links with access links in the forwarded message
                 if link_replacements:
                     new_text = event.text
                     for original_link, access_link in link_replacements.items():
-                        new_text = new_text.replace(original_link, access_link)
+                        if access_link != original_link:  # Only replace if we have a different access link
+                            new_text = new_text.replace(original_link, access_link)
                     await forwarded_message.edit(new_text)
                     logger.info("Replaced original links with access links in forwarded message")
+                else:
+                    logger.info("No link replacements needed")
             else:
                 logger.debug("Message does not contain target bot username or links, ignoring")
         except Exception as e:
