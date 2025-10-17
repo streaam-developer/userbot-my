@@ -152,6 +152,10 @@ class VideoProcessor:
             # Clean up downloaded file
             if video_path and os.path.exists(video_path):
                 try:
+                    os.remove(video_path)
+                    logger.info(f"Cleaned up temporary file: {video_path}")
+                except Exception as e:
+                    logger.error(f"Error cleaning up file {video_path}: {str(e)}")
 
     async def _download_progress(self, current, total):
         """Track download progress"""
