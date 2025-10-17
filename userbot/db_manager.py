@@ -76,6 +76,15 @@ class DatabaseManager:
             logger.error(f"Error fetching link from database: {str(e)}")
             return None
 
+    async def get_processed_link_by_video_id(self, video_file_id):
+        """Get processed link information by video file ID"""
+        try:
+            doc = await self.processed_links.find_one({"video_info.file_id": video_file_id})
+            return doc
+        except Exception as e:
+            logger.error(f"Error fetching link by video ID from database: {str(e)}")
+            return None
+
     async def close(self):
         """Close database connection"""
         self.client.close()

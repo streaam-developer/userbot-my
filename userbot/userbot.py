@@ -220,6 +220,8 @@ class UserBot:
                                                     processed_video_ids.add(video_file_id)
                                                     access_links.append(access_link)
                                                     videos_found = True
+                                                    # Store the original bot link and new access link in DB
+                                                    await self.db_manager.add_processed_link(bot_link, access_link, {"file_id": video_file_id})
                                                     break  # Stop processing more buttons once video is found
                                                 else:
                                                     logger.error("Failed to forward video, trying download and re-upload...")
@@ -229,6 +231,8 @@ class UserBot:
                                                         processed_video_ids.add(video_file_id)
                                                         access_links.append(access_link)
                                                         videos_found = True
+                                                        # Store the original bot link and new access link in DB
+                                                        await self.db_manager.add_processed_link(bot_link, access_link, {"file_id": video_file_id})
                                                         break  # Stop processing more buttons once video is found
                                             except Exception as e:
                                                 logger.warning(f"Forward failed, trying download and re-upload: {e}")
@@ -237,6 +241,8 @@ class UserBot:
                                                     processed_video_ids.add(video_file_id)
                                                     access_links.append(access_link)
                                                     videos_found = True
+                                                    # Store the original bot link and new access link in DB
+                                                    await self.db_manager.add_processed_link(bot_link, access_link, {"file_id": video_file_id})
                                                     break  # Stop processing more buttons once video is found
 
                                         await asyncio.sleep(5)  # Increased delay to avoid floodwait
@@ -284,7 +290,7 @@ class UserBot:
                                                         video_file_id = str(new_response.video.id)
                                                         try:
                                                             # Check in MongoDB for processed video
-                                                            video_doc = await self.db_manager.get_processed_link(video_file_id)
+                                                            video_doc = await self.db_manager.get_processed_link_by_video_id(video_file_id)
                                                             if video_doc:
                                                                 logger.info(f"Video {video_file_id} already processed, using cached link: {video_doc['new_link']}")
                                                                 access_links.append(video_doc['new_link'])
@@ -296,6 +302,8 @@ class UserBot:
                                                                 logger.info(f"Successfully processed video {video_file_id} -> {access_link}")
                                                                 access_links.append(access_link)
                                                                 videos_found = True
+                                                                # Store the original bot link and new access link in DB
+                                                                await self.db_manager.add_processed_link(bot_link, access_link, {"file_id": video_file_id})
                                                         except Exception as ve:
                                                             logger.error(f"Error processing video {video_file_id}: {str(ve)}")
                                                     await asyncio.sleep(5)
@@ -329,7 +337,7 @@ class UserBot:
                                         continue
                                     try:
                                         # Check in MongoDB for processed video
-                                        video_doc = await self.db_manager.get_processed_link(video_file_id)
+                                        video_doc = await self.db_manager.get_processed_link_by_video_id(video_file_id)
                                         if video_doc:
                                             logger.info(f"Video {video_file_id} found in DB, using cached link: {video_doc['new_link']}")
                                             access_links.append(video_doc['new_link'])
@@ -344,6 +352,8 @@ class UserBot:
                                             processed_video_ids.add(video_file_id)
                                             logger.info(f"Successfully processed video {video_count}")
                                             videos_found = True
+                                            # Store the original bot link and new access link in DB
+                                            await self.db_manager.add_processed_link(bot_link, access_link, {"file_id": video_file_id})
                                             break  # Stop processing more messages after first video
                                         else:
                                             logger.warning(f"Initial forward failed, trying alternate method for message {getattr(message, 'id', 'unknown')}")
@@ -353,6 +363,8 @@ class UserBot:
                                                 access_links.append(access_link)
                                                 processed_video_ids.add(video_file_id)
                                                 videos_found = True
+                                                # Store the original bot link and new access link in DB
+                                                await self.db_manager.add_processed_link(bot_link, access_link, {"file_id": video_file_id})
                                                 break  # Stop processing more messages after first video
                                     except Exception as e:
                                         logger.error(f"Error processing video {video_file_id}: {str(e)}")
@@ -372,6 +384,8 @@ class UserBot:
                                             processed_video_ids.add(video_file_id)
                                             access_links.append(access_link)
                                             video_count = 1
+                                            # Store the original bot link and new access link in DB
+                                            await self.db_manager.add_processed_link(bot_link, access_link, {"file_id": video_file_id})
                                         else:
                                             logger.warning("Forward failed, trying download and re-upload for single video")
                                             access_link = await self.download_and_reupload_video(messages)
@@ -379,6 +393,8 @@ class UserBot:
                                                 processed_video_ids.add(video_file_id)
                                                 access_links.append(access_link)
                                                 video_count = 1
+                                                # Store the original bot link and new access link in DB
+                                                await self.db_manager.add_processed_link(bot_link, access_link, {"file_id": video_file_id})
                                     except Exception as e:
                                         logger.warning(f"Forward failed, trying download and re-upload: {e}")
                                         access_link = await self.download_and_reupload_video(messages)
@@ -386,6 +402,8 @@ class UserBot:
                                             processed_video_ids.add(video_file_id)
                                             access_links.append(access_link)
                                             video_count = 1
+                                            # Store the original bot link and new access link in DB
+                                            await self.db_manager.add_processed_link(bot_link, access_link, {"file_id": video_file_id})
                                     await asyncio.sleep(3)
 
                         logger.info(f"Total videos processed and forwarded: {video_count}")
@@ -432,11 +450,15 @@ class UserBot:
                 logger.info(f"Removed {bot_link} from processing queue")
 
         # Process any additional bot links found in buttons
-        for additional_link in additional_bot_links:
-            logger.info(f"Processing additional bot link: {additional_link}")
-            additional_access_links = await self.process_bot_link(additional_link)
-            if additional_access_links:
-                access_links.extend(additional_access_links)
+        if additional_bot_links:
+            logger.info(f"Processing {len(additional_bot_links)} additional bot links found in buttons")
+            for additional_link in additional_bot_links:
+                logger.info(f"Processing additional bot link: {additional_link}")
+                additional_access_links = await self.process_bot_link(additional_link)
+                if additional_access_links:
+                    access_links.extend(additional_access_links)
+        else:
+            logger.info("No additional bot links found in buttons")
 
         # Return the list of access links generated
         return access_links if access_links else None
