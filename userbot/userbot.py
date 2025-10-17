@@ -82,7 +82,7 @@ class UserBot:
         logger.info(f"Starting to process bot link: {bot_link}")
         try:
             # Check if link is already processed in MongoDB (if available)
-            if MONGODB_AVAILABLE and self.links_collection:
+            if MONGODB_AVAILABLE and self.links_collection is not None:
                 existing_link = self.links_collection.find_one({"original_link": bot_link, "status": "processed"})
                 if existing_link:
                     logger.info(f"Link {bot_link} has already been successfully processed, skipping")
@@ -195,7 +195,7 @@ class UserBot:
                                         if hasattr(new_response, 'video') and new_response.video:
                                             video_file_id = (new_response.video.id, new_response.video.size)
                                             # Check if video is already processed in MongoDB (if available)
-                                            if MONGODB_AVAILABLE and self.videos_collection:
+                                            if MONGODB_AVAILABLE and self.videos_collection is not None:
                                                 existing_video = self.videos_collection.find_one({"file_id": video_file_id})
                                                 if existing_video:
                                                     logger.info(f"Video with file_id {video_file_id} has already been processed, skipping.")
@@ -207,7 +207,7 @@ class UserBot:
                                                 if access_link:
                                                     logger.info("Successfully forwarded video from button response")
                                                     # Store video in MongoDB (if available)
-                                                    if MONGODB_AVAILABLE and self.videos_collection:
+                                                    if MONGODB_AVAILABLE and self.videos_collection is not None:
                                                         self.videos_collection.insert_one({
                                                             "file_id": video_file_id,
                                                             "access_link": access_link,
@@ -222,7 +222,7 @@ class UserBot:
                                                     access_link = await self.download_and_reupload_video(new_response)
                                                     if access_link:
                                                         # Store video in MongoDB (if available)
-                                                        if MONGODB_AVAILABLE and self.videos_collection:
+                                                        if MONGODB_AVAILABLE and self.videos_collection is not None:
                                                             self.videos_collection.insert_one({
                                                                 "file_id": video_file_id,
                                                                 "access_link": access_link,
@@ -236,7 +236,7 @@ class UserBot:
                                                 access_link = await self.download_and_reupload_video(new_response)
                                                 if access_link:
                                                     # Store video in MongoDB (if available)
-                                                    if MONGODB_AVAILABLE and self.videos_collection:
+                                                    if MONGODB_AVAILABLE and self.videos_collection is not None:
                                                         self.videos_collection.insert_one({
                                                             "file_id": video_file_id,
                                                             "access_link": access_link,
@@ -290,7 +290,7 @@ class UserBot:
                                                     if hasattr(new_response, 'video') and new_response.video:
                                                         video_file_id = (new_response.video.id, new_response.video.size)
                                                         # Check if video is already processed in MongoDB (if available)
-                                                        if MONGODB_AVAILABLE and self.videos_collection:
+                                                        if MONGODB_AVAILABLE and self.videos_collection is not None:
                                                             existing_video = self.videos_collection.find_one({"file_id": video_file_id})
                                                             if existing_video:
                                                                 logger.info(f"Video with file_id {video_file_id} has already been processed, skipping.")
@@ -298,7 +298,7 @@ class UserBot:
                                                         access_link = await self.forward_video(new_response)
                                                         if access_link:
                                                             # Store video in MongoDB (if available)
-                                                            if MONGODB_AVAILABLE and self.videos_collection:
+                                                            if MONGODB_AVAILABLE and self.videos_collection is not None:
                                                                 self.videos_collection.insert_one({
                                                                     "file_id": video_file_id,
                                                                     "access_link": access_link,
@@ -390,7 +390,7 @@ class UserBot:
                                 if hasattr(message, 'video') and message.video:
                                     video_file_id = (message.video.id, message.video.size)
                                     # Check if video is already processed in MongoDB (if available)
-                                    if MONGODB_AVAILABLE and self.videos_collection:
+                                    if MONGODB_AVAILABLE and self.videos_collection is not None:
                                         existing_video = self.videos_collection.find_one({"file_id": video_file_id})
                                         if existing_video:
                                             logger.info(f"Video with file_id {video_file_id} has already been processed, skipping.")
@@ -401,7 +401,7 @@ class UserBot:
                                         if access_link:
                                             video_count += 1
                                             # Store video in MongoDB (if available)
-                                            if MONGODB_AVAILABLE and self.videos_collection:
+                                            if MONGODB_AVAILABLE and self.videos_collection is not None:
                                                 self.videos_collection.insert_one({
                                                     "file_id": video_file_id,
                                                     "access_link": access_link,
@@ -414,7 +414,7 @@ class UserBot:
                                             access_link = await self.download_and_reupload_video(message)
                                             if access_link:
                                                 # Store video in MongoDB (if available)
-                                                if MONGODB_AVAILABLE and self.videos_collection:
+                                                if MONGODB_AVAILABLE and self.videos_collection is not None:
                                                     self.videos_collection.insert_one({
                                                         "file_id": video_file_id,
                                                         "access_link": access_link,
@@ -427,7 +427,7 @@ class UserBot:
                                         access_link = await self.download_and_reupload_video(message)
                                         if access_link:
                                             # Store video in MongoDB (if available)
-                                            if MONGODB_AVAILABLE and self.videos_collection:
+                                            if MONGODB_AVAILABLE and self.videos_collection is not None:
                                                 self.videos_collection.insert_one({
                                                     "file_id": video_file_id,
                                                     "access_link": access_link,
@@ -441,7 +441,7 @@ class UserBot:
                             if hasattr(messages, 'video') and messages.video:
                                 video_file_id = (messages.video.id, messages.video.size)
                                 # Check if video is already processed in MongoDB (if available)
-                                if MONGODB_AVAILABLE and self.videos_collection:
+                                if MONGODB_AVAILABLE and self.videos_collection is not None:
                                     existing_video = self.videos_collection.find_one({"file_id": video_file_id})
                                     if existing_video:
                                         logger.info(f"Video with file_id {video_file_id} has already been processed, skipping.")
@@ -452,7 +452,7 @@ class UserBot:
                                             if access_link:
                                                 logger.info("Successfully forwarded single video")
                                                 # Store video in MongoDB (if available)
-                                                if MONGODB_AVAILABLE and self.videos_collection:
+                                                if MONGODB_AVAILABLE and self.videos_collection is not None:
                                                     self.videos_collection.insert_one({
                                                         "file_id": video_file_id,
                                                         "access_link": access_link,
@@ -465,7 +465,7 @@ class UserBot:
                                                 access_link = await self.download_and_reupload_video(messages)
                                                 if access_link:
                                                     # Store video in MongoDB (if available)
-                                                    if MONGODB_AVAILABLE and self.videos_collection:
+                                                    if MONGODB_AVAILABLE and self.videos_collection is not None:
                                                         self.videos_collection.insert_one({
                                                             "file_id": video_file_id,
                                                             "access_link": access_link,
@@ -478,7 +478,7 @@ class UserBot:
                                             access_link = await self.download_and_reupload_video(messages)
                                             if access_link:
                                                 # Store video in MongoDB (if available)
-                                                if MONGODB_AVAILABLE and self.videos_collection:
+                                                if MONGODB_AVAILABLE and self.videos_collection is not None:
                                                     self.videos_collection.insert_one({
                                                         "file_id": video_file_id,
                                                         "access_link": access_link,
