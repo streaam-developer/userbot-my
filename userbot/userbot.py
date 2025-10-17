@@ -253,14 +253,6 @@ class UserBot:
                     initial_response_text = response.text if hasattr(response, 'text') else ""
                     await asyncio.sleep(3)  # Brief wait for potential edits
 
-        except Exception as e:
-            logger.error(f"Error processing bot link {bot_link}: {str(e)}")
-        finally:
-            # Always clean up processing state
-            if bot_link in self.processing_links:
-                self.processing_links.remove(bot_link)
-                logger.info(f"Removed {bot_link} from processing queue")
-
                     # Check if the initial response was edited
                     try:
                         current_response = await client.get_messages(bot_username, ids=response.id)
@@ -294,7 +286,7 @@ class UserBot:
                                                                 logger.info(f"Video {video_file_id} already processed, using cached link: {video_doc['new_link']}")
                                                                 access_links.append(video_doc['new_link'])
                                                                 continue
-                                                                
+
                                                             # Process the video if not found in DB
                                                             access_link = await self.forward_video(new_response, video_file_id)
                                                             if access_link:
@@ -340,7 +332,7 @@ class UserBot:
                                             logger.info(f"Video {video_file_id} found in DB, using cached link: {video_doc['new_link']}")
                                             access_links.append(video_doc['new_link'])
                                             continue
-                                            
+
                                         logger.info(f"Found new video in message ID: {getattr(message, 'id', 'unknown')}")
                                         access_link = await self.forward_video(message, video_file_id)
                                         if access_link:
@@ -398,20 +390,6 @@ class UserBot:
                     else:
                         logger.warning("No messages retrieved from bot")
 
-            finally:
-                self.processing_links.remove(bot_link)
-                logger.info(f"Removed {bot_link} from processing set. Current processing: {len(self.processing_links)}")
-
-                # Process any additional bot links found in buttons
-                for additional_link in additional_bot_links:
-                    logger.info(f"Processing additional bot link: {additional_link}")
-                    additional_access_links = await self.process_bot_link(additional_link)
-                    if additional_access_links:
-                        access_links.extend(additional_access_links)
-
-                # Return the list of access links generated
-                return access_links if access_links else None
-
         except (AuthKeyInvalidError, SessionPasswordNeededError,
                 PhoneNumberInvalidError, ApiIdInvalidError) as e:
             logger.error(f"Authentication error processing bot link {bot_link}: {str(e)}")
@@ -424,6 +402,21 @@ class UserBot:
             logger.error(f"Access error processing bot link {bot_link}: {str(e)}")
         except Exception as e:
             logger.error(f"Unexpected error processing bot link {bot_link}: {str(e)}")
+        finally:
+            # Always clean up processing state
+            if bot_link in self.processing_links:
+                self.processing_links.remove(bot_link)
+                logger.info(f"Removed {bot_link} from processing queue")
+
+        # Process any additional bot links found in buttons
+        for additional_link in additional_bot_links:
+            logger.info(f"Processing additional bot link: {additional_link}")
+            additional_access_links = await self.process_bot_link(additional_link)
+            if additional_access_links:
+                access_links.extend(additional_access_links)
+
+        # Return the list of access links generated
+        return access_links if access_links else None
 
     async def start(self):
         """Start the userbot"""
