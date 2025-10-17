@@ -349,8 +349,6 @@ class UserBot:
                                                 videos_found = True
                                     except Exception as e:
                                         logger.error(f"Error processing video {video_file_id}: {str(e)}")
-                                            access_links.append(access_link)
-                                            video_count += 1
                                     await asyncio.sleep(3)
                         except (TypeError, AttributeError) as e:
                             logger.warning(f"Could not iterate messages, trying single message approach: {e}")
@@ -389,6 +387,24 @@ class UserBot:
                             logger.info(f"Added {bot_link} to processed links set")
                     else:
                         logger.warning("No messages retrieved from bot")
+
+            except (AuthKeyInvalidError, SessionPasswordNeededError,
+                    PhoneNumberInvalidError, ApiIdInvalidError) as e:
+                logger.error(f"Authentication error processing bot link {bot_link}: {str(e)}")
+                raise  # Critical error, stop the bot
+            except (FloodWaitError, TimeoutError) as e:
+                logger.warning(f"Temporary error processing bot link {bot_link}: {str(e)}")
+                # Could implement retry logic here
+            except (PeerIdInvalidError, ChatWriteForbiddenError,
+                    UserBannedInChannelError) as e:
+                logger.error(f"Access error processing bot link {bot_link}: {str(e)}")
+            except Exception as e:
+                logger.error(f"Unexpected error processing bot link {bot_link}: {str(e)}")
+            finally:
+                # Always clean up processing state
+                if bot_link in self.processing_links:
+                    self.processing_links.remove(bot_link)
+                    logger.info(f"Removed {bot_link} from processing queue")
 
         except (AuthKeyInvalidError, SessionPasswordNeededError,
                 PhoneNumberInvalidError, ApiIdInvalidError) as e:
