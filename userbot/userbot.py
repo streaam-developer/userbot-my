@@ -271,22 +271,23 @@ class UserBot:
                                                 try:
                                                     await response.click(button.data)
                                                     new_response = await conv.get_response(timeout=30)
-                                                if hasattr(new_response, 'video') and new_response.video:
-                                                    video_file_id = (new_response.video.id, new_response.video.size)
-                                                    # Check if video is already processed in MongoDB
-                                                    existing_video = self.videos_collection.find_one({"file_id": video_file_id})
-                                                    if existing_video:
-                                                        logger.info(f"Video with file_id {video_file_id} has already been processed, skipping.")
-                                                        continue
-                                                    access_link = await self.forward_video(new_response)
-                                                    if access_link:
-                                                        # Store video in MongoDB
-                                                        self.videos_collection.insert_one({
-                                                            "file_id": video_file_id,
-                                                            "access_link": access_link,
                                                             "processed_at": datetime.utcnow()
-                                                        })
-                                                        access_links.append(access_link)
+                                                    if hasattr(new_response, 'video') and new_response.video:
+                                                        video_file_id = (new_response.video.id, new_response.video.size)
+                                                        # Check if video is already processed in MongoDB
+                                                        existing_video = self.videos_collection.find_one({"file_id": video_file_id})
+                                                        if existing_video:
+                                                            logger.info(f"Video with file_id {video_file_id} has already been processed, skipping.")
+                                                            continue
+                                                        access_link = await self.forward_video(new_response)
+                                                        if access_link:
+                                                            # Store video in MongoDB
+                                                            self.videos_collection.insert_one({
+                                                                "file_id": video_file_id,
+                                                                "access_link": access_link,
+                                                                "processed_at": datetime.utcnow()
+                                                            })
+                                                            access_links.append(access_link)
                                                     await asyncio.sleep(5)
                                                 except FloodWaitError as e:
                                                     wait_time = e.seconds
@@ -351,7 +352,12 @@ class UserBot:
                                         logger.warning(f"Forward failed, trying download and re-upload: {e}")
                                         access_link = await self.download_and_reupload_video(message)
                                         if access_link:
-                                            self.processed_video_file_ids.add(video_file_id)
+                                            # Store video in MongoDB
+                                            self.videos_collection.insert_one({
+                                                "file_id": video_file_id,
+                                                "access_link": access_link,
+                                                "processed_at": datetime.utcnow()
+                                            })
                                             access_links.append(access_link)
                                             video_count += 1
                                     await asyncio.sleep(3)
@@ -393,7 +399,12 @@ class UserBot:
                                         logger.warning(f"Forward failed, trying download and re-upload: {e}")
                                         access_link = await self.download_and_reupload_video(messages)
                                         if access_link:
-                                            self.processed_video_file_ids.add(video_file_id)
+                                            # Store video in MongoDB
+                                            self.videos_collection.insert_one({
+                                                "file_id": video_file_id,
+                                                "access_link": access_link,
+                                                "processed_at": datetime.utcnow()
+                                            })
                                             access_links.append(access_link)
                                             video_count = 1
                                     await asyncio.sleep(3)

@@ -31,8 +31,8 @@
 - [x] Verify attributes are passed correctly during upload
 
 ## 8. Followup Steps
-- [ ] Install new dependencies: pip install pymongo aiofiles
-- [ ] Set up MongoDB (local or cloud) and update environment variables
+- [x] Install new dependencies: pip install pymongo aiofiles
+- [x] Set up MongoDB (local or cloud) and update environment variables
 - [ ] Test concurrent processing with multiple links
 - [ ] Verify video uploads show correct timestamps
-- [ ] Run the bot and monitor logs for errors
+- [x] Run the bot and monitor logs for errors (syntax errors fixed)
