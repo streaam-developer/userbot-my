@@ -3,5 +3,3 @@ python-dotenv
 aiohttp
 cryptg
 pillow
-pymongo
-aiofiles
