@@ -53,6 +53,7 @@ class UserBot:
         # Initialize database
         self.db_manager = DatabaseManager(MONGODB_URI, DATABASE_NAME)
         self.processing_links = set()
+        self.processed_links = set()
         self.processed_video_file_ids = set()
 
         # Initialize helper classes with database support
