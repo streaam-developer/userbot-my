@@ -271,7 +271,6 @@ class UserBot:
                                                 try:
                                                     await response.click(button.data)
                                                     new_response = await conv.get_response(timeout=30)
-                                                            "processed_at": datetime.utcnow()
                                                     if hasattr(new_response, 'video') and new_response.video:
                                                         video_file_id = (new_response.video.id, new_response.video.size)
                                                         # Check if video is already processed in MongoDB
