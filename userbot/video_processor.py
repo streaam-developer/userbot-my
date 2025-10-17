@@ -174,9 +174,15 @@ class VideoProcessor:
     async def _extract_thumbnail(self, message):
         """Extract video thumbnail if available"""
         try:
-            if hasattr(message.video, 'thumbs'):
+            if hasattr(message.video, 'thumbs') and message.video.thumbs:
                 thumb = message.video.thumbs[0]
-                return await message.download_media(thumb)
+                # Handle different thumbnail types
+                if hasattr(thumb, 'bytes'):
+                    return thumb.bytes
+                elif hasattr(thumb, 'location'):
+                    return await message.download_media(thumb)
+                else:
+                    logger.warning(f"Unsupported thumbnail type: {type(thumb)}")
         except Exception as e:
             logger.error(f"Error extracting thumbnail: {str(e)}")
         return None
