@@ -76,26 +76,41 @@ class UserBot:
     async def process_bot_link(self, bot_link):
         """Process bot link and extract videos with MongoDB tracking"""
         logger.info(f"Starting to process bot link: {bot_link}")
+        
+        if not hasattr(self, 'db_manager'):
+            logger.error("Database manager not initialized")
+            return None
+
         try:
-            # Check if link was already processed in MongoDB
-            existing = await self.db_manager.get_processed_link(bot_link)
-            if existing:
-                logger.info(f"Link {bot_link} was already processed. Returning cached link: {existing['new_link']}")
-                return existing['new_link']
+            # First check MongoDB for already processed link
+            try:
+                existing = await self.db_manager.get_processed_link(bot_link)
+                if existing:
+                    logger.info(f"Link already processed in DB: {bot_link} -> {existing['new_link']}")
+                    return existing['new_link']
+            except Exception as e:
+                logger.error(f"Error checking MongoDB: {str(e)}")
+                # Continue processing even if DB check fails
             
-            # Check if link is currently being processed
+            # Check processing state
             if bot_link in self.processing_links:
-                logger.info(f"Link {bot_link} is currently being processed, skipping")
+                # Double check DB one more time in case it was processed while waiting
+                try:
+                    double_check = await self.db_manager.get_processed_link(bot_link)
+                    if double_check:
+                        self.processing_links.remove(bot_link)
+                        return double_check['new_link']
+                except Exception:
+                    pass
+                    
+                logger.info(f"Link is currently being processed by another task: {bot_link}")
                 return None
-                
-            self.processing_links.add(bot_link)
 
-            if bot_link in self.processing_links:
-                logger.info(f"Link {bot_link} is already being processed, skipping")
-                return None
-
+            # Mark as processing
             self.processing_links.add(bot_link)
-            logger.info(f"Added {bot_link} to processing set. Current processing: {len(self.processing_links)}")
+            logger.info(f"Starting to process new link: {bot_link}")
+            
+            # Initialize processing variables
             additional_bot_links = []
             videos_found = False  # Flag to stop processing once videos are found
             access_links = []  # To collect access links generated
@@ -238,6 +253,14 @@ class UserBot:
                     initial_response_text = response.text if hasattr(response, 'text') else ""
                     await asyncio.sleep(3)  # Brief wait for potential edits
 
+        except Exception as e:
+            logger.error(f"Error processing bot link {bot_link}: {str(e)}")
+        finally:
+            # Always clean up processing state
+            if bot_link in self.processing_links:
+                self.processing_links.remove(bot_link)
+                logger.info(f"Removed {bot_link} from processing queue")
+
                     # Check if the initial response was edited
                     try:
                         current_response = await client.get_messages(bot_username, ids=response.id)
@@ -264,16 +287,22 @@ class UserBot:
                                                     new_response = await conv.get_response(timeout=30)
                                                     if hasattr(new_response, 'video') and new_response.video:
                                                         video_file_id = str(new_response.video.id)
-                                                        # Check in MongoDB for processed video
-                                                        video_doc = await self.db_manager.get_processed_link(video_file_id)
-                                                        if video_doc:
-                                                            logger.info(f"Video {video_file_id} already processed, using cached link")
-                                                            access_links.append(video_doc['new_link'])
-                                                            continue
-                                                            
-                                                        access_link = await self.forward_video(new_response, video_file_id)
-                                                        if access_link:
-                                                            access_links.append(access_link)
+                                                        try:
+                                                            # Check in MongoDB for processed video
+                                                            video_doc = await self.db_manager.get_processed_link(video_file_id)
+                                                            if video_doc:
+                                                                logger.info(f"Video {video_file_id} already processed, using cached link: {video_doc['new_link']}")
+                                                                access_links.append(video_doc['new_link'])
+                                                                continue
+                                                                
+                                                            # Process the video if not found in DB
+                                                            access_link = await self.forward_video(new_response, video_file_id)
+                                                            if access_link:
+                                                                logger.info(f"Successfully processed video {video_file_id} -> {access_link}")
+                                                                access_links.append(access_link)
+                                                                videos_found = True
+                                                        except Exception as ve:
+                                                            logger.error(f"Error processing video {video_file_id}: {str(ve)}")
                                                     await asyncio.sleep(5)
                                                 except FloodWaitError as e:
                                                     wait_time = e.seconds
@@ -303,30 +332,31 @@ class UserBot:
                             logger.info(f"Processing {len(message_list)} messages")
                             for message in message_list:
                                 if hasattr(message, 'video') and message.video:
-                                    video_file_id = (message.video.id, message.video.size)
-                                    if video_file_id in self.processed_video_file_ids:
-                                        logger.info(f"Video with file_id {video_file_id} has already been processed, skipping.")
-                                        continue
-                                    logger.info(f"Found video in message ID: {getattr(message, 'id', 'unknown')}")
+                                    video_file_id = str(message.video.id)
                                     try:
-                                        access_link = await self.forward_video(message)
+                                        # Check in MongoDB for processed video
+                                        video_doc = await self.db_manager.get_processed_link(video_file_id)
+                                        if video_doc:
+                                            logger.info(f"Video {video_file_id} found in DB, using cached link: {video_doc['new_link']}")
+                                            access_links.append(video_doc['new_link'])
+                                            continue
+                                            
+                                        logger.info(f"Found new video in message ID: {getattr(message, 'id', 'unknown')}")
+                                        access_link = await self.forward_video(message, video_file_id)
                                         if access_link:
                                             video_count += 1
-                                            self.processed_video_file_ids.add(video_file_id)
                                             access_links.append(access_link)
-                                            logger.info(f"Successfully forwarded video {video_count}")
+                                            logger.info(f"Successfully processed video {video_count}")
+                                            videos_found = True
                                         else:
-                                            logger.warning(f"Forward failed, trying download and re-upload for message {getattr(message, 'id', 'unknown')}")
-                                            access_link = await self.download_and_reupload_video(message)
+                                            logger.warning(f"Initial forward failed, trying alternate method for message {getattr(message, 'id', 'unknown')}")
+                                            access_link = await self.download_and_reupload_video(message, video_file_id)
                                             if access_link:
-                                                self.processed_video_file_ids.add(video_file_id)
-                                                access_links.append(access_link)
                                                 video_count += 1
+                                                access_links.append(access_link)
+                                                videos_found = True
                                     except Exception as e:
-                                        logger.warning(f"Forward failed, trying download and re-upload: {e}")
-                                        access_link = await self.download_and_reupload_video(message)
-                                        if access_link:
-                                            self.processed_video_file_ids.add(video_file_id)
+                                        logger.error(f"Error processing video {video_file_id}: {str(e)}")
                                             access_links.append(access_link)
                                             video_count += 1
                                     await asyncio.sleep(3)
