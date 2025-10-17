@@ -180,15 +180,3 @@ class VideoProcessor:
         except Exception as e:
             logger.error(f"Error extracting thumbnail: {str(e)}")
         return None
-                try:
-                    os.remove(video_path)
-                    logger.info("Cleaned up downloaded video file")
-                except Exception as e:
-                    logger.warning(f"Could not clean up file: {e}")
-                return link
-            else:
-                logger.error("Failed to download video")
-                return False
-        except Exception as e:
-            logger.error(f"Error in download and re-upload: {str(e)}")
-            return False
