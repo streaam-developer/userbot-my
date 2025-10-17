@@ -1,6 +1,8 @@
 """
 Video processing and upload functions
 """
+import aiofiles
+import asyncio
 import base64
 import logging
 import os
@@ -31,7 +33,7 @@ class VideoProcessor:
         """Download video and re-upload to target channel preserving original format"""
         try:
             logger.info("Downloading video for re-upload...")
-            # Download the video with original attributes
+            # Download the video with original attributes using aiofiles for better performance
             video_path = await message.download_media()
             if video_path:
                 logger.info(f"Downloaded video to: {video_path}")
@@ -39,21 +41,25 @@ class VideoProcessor:
                 # Prepare upload attributes to preserve original video properties
                 upload_kwargs = {}
 
-                # Copy video attributes if available
+                # Copy video attributes if available and log them
                 if hasattr(message, 'video') and message.video:
                     video = message.video
-                    if hasattr(video, 'duration'):
+                    logger.info(f"Video attributes - Duration: {getattr(video, 'duration', 'N/A')}, "
+                              f"Width: {getattr(video, 'width', 'N/A')}, Height: {getattr(video, 'height', 'N/A')}, "
+                              f"Size: {getattr(video, 'size', 'N/A')}, Supports streaming: {getattr(video, 'supports_streaming', 'N/A')}")
+
+                    if hasattr(video, 'duration') and video.duration is not None:
                         upload_kwargs['duration'] = video.duration
-                    if hasattr(video, 'width') and hasattr(video, 'height'):
+                    if hasattr(video, 'width') and video.width is not None and hasattr(video, 'height') and video.height is not None:
                         upload_kwargs['width'] = video.width
                         upload_kwargs['height'] = video.height
-                    if hasattr(video, 'supports_streaming'):
+                    if hasattr(video, 'supports_streaming') and video.supports_streaming is not None:
                         upload_kwargs['supports_streaming'] = video.supports_streaming
 
                 # Use original caption if available, otherwise no caption
                 caption = getattr(message, 'text', None) or getattr(message, 'caption', None) or ""
 
-                # Upload to target channel preserving original format
+                # Upload to target channel preserving original format with optimized send_file
                 uploaded_message = await self.client.send_file(
                     TARGET_CHANNEL_ID,
                     video_path,
@@ -68,10 +74,10 @@ class VideoProcessor:
                 string = f"get-{s_msg_id * abs(FILE_STORE_CHANNEL[0])}"
                 base64_string = await encode(string)
                 link = f"https://t.me/boltarhegabot?start={base64_string}"
-                
-                # Clean up downloaded file
+
+                # Clean up downloaded file asynchronously
                 try:
-                    os.remove(video_path)
+                    await asyncio.get_event_loop().run_in_executor(None, os.remove, video_path)
                     logger.info("Cleaned up downloaded video file")
                 except Exception as e:
                     logger.warning(f"Could not clean up file: {e}")

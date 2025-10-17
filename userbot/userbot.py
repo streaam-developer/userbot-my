@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import re
+from datetime import datetime
 
 from bot_handlers import BotHandlers
 from channel_manager import ChannelManager
@@ -10,6 +11,7 @@ from config import (
     SESSION_NAME,
     TARGET_BOT_USERNAME,
     TARGET_BOT_USERNAMES,
+    db,
 )
 from telethon import TelegramClient, events
 from telethon.errors import (
@@ -47,9 +49,10 @@ client = TelegramClient(SESSION_NAME, int(API_ID), API_HASH)
 
 class UserBot:
     def __init__(self):
-        self.processing_links = set()
-        self.processed_links = set()  # Track links that have been successfully processed
-        self.processed_video_file_ids = set()
+        # MongoDB collections
+        self.links_collection = db['processed_links']
+        self.processing_collection = db['processing_links']
+        self.videos_collection = db['processed_videos']
 
         # Initialize helper classes
         self.bot_handlers = BotHandlers(self)
@@ -72,16 +75,24 @@ class UserBot:
         """Process bot link and extract videos, return access link if generated"""
         logger.info(f"Starting to process bot link: {bot_link}")
         try:
-            if bot_link in self.processed_links:
+            # Check if link is already processed in MongoDB
+            existing_link = self.links_collection.find_one({"original_link": bot_link, "status": "processed"})
+            if existing_link:
                 logger.info(f"Link {bot_link} has already been successfully processed, skipping")
-                return None
+                return existing_link.get("access_links", [])
 
-            if bot_link in self.processing_links:
+            # Check if link is currently being processed
+            processing_doc = self.processing_collection.find_one({"link": bot_link})
+            if processing_doc:
                 logger.info(f"Link {bot_link} is already being processed, skipping")
                 return None
 
-            self.processing_links.add(bot_link)
-            logger.info(f"Added {bot_link} to processing set. Current processing: {len(self.processing_links)}")
+            # Mark link as processing
+            self.processing_collection.insert_one({
+                "link": bot_link,
+                "started_at": datetime.utcnow()
+            })
+            logger.info(f"Marked {bot_link} as processing in database")
             additional_bot_links = []
             videos_found = False  # Flag to stop processing once videos are found
             access_links = []  # To collect access links generated
@@ -176,7 +187,9 @@ class UserBot:
                                         # Check if video is forwardable, if not, download and re-upload
                                         if hasattr(new_response, 'video') and new_response.video:
                                             video_file_id = (new_response.video.id, new_response.video.size)
-                                            if video_file_id in self.processed_video_file_ids:
+                                            # Check if video is already processed in MongoDB
+                                            existing_video = self.videos_collection.find_one({"file_id": video_file_id})
+                                            if existing_video:
                                                 logger.info(f"Video with file_id {video_file_id} has already been processed, skipping.")
                                                 continue
                                             logger.info("Found video in button click response")
@@ -185,7 +198,12 @@ class UserBot:
                                                 access_link = await self.forward_video(new_response)
                                                 if access_link:
                                                     logger.info("Successfully forwarded video from button response")
-                                                    self.processed_video_file_ids.add(video_file_id)
+                                                    # Store video in MongoDB
+                                                    self.videos_collection.insert_one({
+                                                        "file_id": video_file_id,
+                                                        "access_link": access_link,
+                                                        "processed_at": datetime.utcnow()
+                                                    })
                                                     access_links.append(access_link)
                                                     videos_found = True
                                                     break  # Stop processing more buttons once video is found
@@ -194,7 +212,12 @@ class UserBot:
                                                     # Download and re-upload the video
                                                     access_link = await self.download_and_reupload_video(new_response)
                                                     if access_link:
-                                                        self.processed_video_file_ids.add(video_file_id)
+                                                        # Store video in MongoDB
+                                                        self.videos_collection.insert_one({
+                                                            "file_id": video_file_id,
+                                                            "access_link": access_link,
+                                                            "processed_at": datetime.utcnow()
+                                                        })
                                                         access_links.append(access_link)
                                                         videos_found = True
                                                         break  # Stop processing more buttons once video is found
@@ -248,15 +271,22 @@ class UserBot:
                                                 try:
                                                     await response.click(button.data)
                                                     new_response = await conv.get_response(timeout=30)
-                                                    if hasattr(new_response, 'video') and new_response.video:
-                                                        video_file_id = (new_response.video.id, new_response.video.size)
-                                                        if video_file_id in self.processed_video_file_ids:
-                                                            logger.info(f"Video with file_id {video_file_id} has already been processed, skipping.")
-                                                            continue
-                                                        access_link = await self.forward_video(new_response)
-                                                        if access_link:
-                                                            self.processed_video_file_ids.add(video_file_id)
-                                                            access_links.append(access_link)
+                                                if hasattr(new_response, 'video') and new_response.video:
+                                                    video_file_id = (new_response.video.id, new_response.video.size)
+                                                    # Check if video is already processed in MongoDB
+                                                    existing_video = self.videos_collection.find_one({"file_id": video_file_id})
+                                                    if existing_video:
+                                                        logger.info(f"Video with file_id {video_file_id} has already been processed, skipping.")
+                                                        continue
+                                                    access_link = await self.forward_video(new_response)
+                                                    if access_link:
+                                                        # Store video in MongoDB
+                                                        self.videos_collection.insert_one({
+                                                            "file_id": video_file_id,
+                                                            "access_link": access_link,
+                                                            "processed_at": datetime.utcnow()
+                                                        })
+                                                        access_links.append(access_link)
                                                     await asyncio.sleep(5)
                                                 except FloodWaitError as e:
                                                     wait_time = e.seconds
@@ -287,7 +317,9 @@ class UserBot:
                             for message in message_list:
                                 if hasattr(message, 'video') and message.video:
                                     video_file_id = (message.video.id, message.video.size)
-                                    if video_file_id in self.processed_video_file_ids:
+                                    # Check if video is already processed in MongoDB
+                                    existing_video = self.videos_collection.find_one({"file_id": video_file_id})
+                                    if existing_video:
                                         logger.info(f"Video with file_id {video_file_id} has already been processed, skipping.")
                                         continue
                                     logger.info(f"Found video in message ID: {getattr(message, 'id', 'unknown')}")
@@ -295,14 +327,24 @@ class UserBot:
                                         access_link = await self.forward_video(message)
                                         if access_link:
                                             video_count += 1
-                                            self.processed_video_file_ids.add(video_file_id)
+                                            # Store video in MongoDB
+                                            self.videos_collection.insert_one({
+                                                "file_id": video_file_id,
+                                                "access_link": access_link,
+                                                "processed_at": datetime.utcnow()
+                                            })
                                             access_links.append(access_link)
                                             logger.info(f"Successfully forwarded video {video_count}")
                                         else:
                                             logger.warning(f"Forward failed, trying download and re-upload for message {getattr(message, 'id', 'unknown')}")
                                             access_link = await self.download_and_reupload_video(message)
                                             if access_link:
-                                                self.processed_video_file_ids.add(video_file_id)
+                                                # Store video in MongoDB
+                                                self.videos_collection.insert_one({
+                                                    "file_id": video_file_id,
+                                                    "access_link": access_link,
+                                                    "processed_at": datetime.utcnow()
+                                                })
                                                 access_links.append(access_link)
                                                 video_count += 1
                                     except Exception as e:
@@ -317,7 +359,9 @@ class UserBot:
                             logger.warning(f"Could not iterate messages, trying single message approach: {e}")
                             if hasattr(messages, 'video') and messages.video:
                                 video_file_id = (messages.video.id, messages.video.size)
-                                if video_file_id in self.processed_video_file_ids:
+                                # Check if video is already processed in MongoDB
+                                existing_video = self.videos_collection.find_one({"file_id": video_file_id})
+                                if existing_video:
                                     logger.info(f"Video with file_id {video_file_id} has already been processed, skipping.")
                                 else:
                                     logger.info(f"Found single video message ID: {getattr(messages, 'id', 'unknown')}")
@@ -325,14 +369,24 @@ class UserBot:
                                         access_link = await self.forward_video(messages)
                                         if access_link:
                                             logger.info("Successfully forwarded single video")
-                                            self.processed_video_file_ids.add(video_file_id)
+                                            # Store video in MongoDB
+                                            self.videos_collection.insert_one({
+                                                "file_id": video_file_id,
+                                                "access_link": access_link,
+                                                "processed_at": datetime.utcnow()
+                                            })
                                             access_links.append(access_link)
                                             video_count = 1
                                         else:
                                             logger.warning("Forward failed, trying download and re-upload for single video")
                                             access_link = await self.download_and_reupload_video(messages)
                                             if access_link:
-                                                self.processed_video_file_ids.add(video_file_id)
+                                                # Store video in MongoDB
+                                                self.videos_collection.insert_one({
+                                                    "file_id": video_file_id,
+                                                    "access_link": access_link,
+                                                    "processed_at": datetime.utcnow()
+                                                })
                                                 access_links.append(access_link)
                                                 video_count = 1
                                     except Exception as e:
@@ -346,14 +400,22 @@ class UserBot:
 
                         logger.info(f"Total videos processed and forwarded: {video_count}")
                         if video_count > 0:
-                            self.processed_links.add(bot_link)
-                            logger.info(f"Added {bot_link} to processed links set")
+                            # Store processed link in MongoDB
+                            self.links_collection.insert_one({
+                                "original_link": bot_link,
+                                "access_links": access_links,
+                                "status": "processed",
+                                "processed_at": datetime.utcnow(),
+                                "video_count": video_count
+                            })
+                            logger.info(f"Stored processed link {bot_link} in database with {video_count} videos")
                     else:
                         logger.warning("No messages retrieved from bot")
 
             finally:
-                self.processing_links.remove(bot_link)
-                logger.info(f"Removed {bot_link} from processing set. Current processing: {len(self.processing_links)}")
+                # Remove from processing collection
+                self.processing_collection.delete_one({"link": bot_link})
+                logger.info(f"Removed {bot_link} from processing collection")
 
                 # Process any additional bot links found in buttons
                 for additional_link in additional_bot_links:

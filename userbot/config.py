@@ -1,6 +1,10 @@
+import logging
 import os
 
 from dotenv import load_dotenv
+from pymongo import MongoClient
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -42,3 +46,18 @@ SESSION_NAME = "userbot_session"
 
 # For link generation
 FILE_STORE_CHANNEL = [TARGET_CHANNEL_ID]
+
+# MongoDB Configuration
+MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb+srv://sonukumarkrbbu60:lfkTvljnt25ehTt9@cluster0.2wrbftx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
+DATABASE_NAME = os.getenv('DATABASE_NAME', 'userbot_db')
+
+# MongoDB Client
+try:
+    mongo_client = MongoClient(MONGODB_URI)
+    db = mongo_client[DATABASE_NAME]
+    # Test connection
+    mongo_client.admin.command('ping')
+    logger.info("MongoDB connected successfully")
+except Exception as e:
+    logger.error(f"MongoDB connection failed: {e}")
+    raise
