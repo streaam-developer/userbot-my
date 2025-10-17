@@ -511,7 +511,7 @@ class UserBot:
                         logger.info(f"Total videos processed and forwarded: {video_count}")
                         if video_count > 0:
                             # Store processed link in MongoDB (if available)
-                            if MONGODB_AVAILABLE and self.links_collection:
+                            if MONGODB_AVAILABLE and self.links_collection is not None:
                                 self.links_collection.insert_one({
                                     "original_link": bot_link,
                                     "access_links": access_links,
@@ -525,7 +525,7 @@ class UserBot:
 
             finally:
                 # Remove from processing collection (if available)
-                if MONGODB_AVAILABLE and self.processing_collection:
+                if MONGODB_AVAILABLE and self.processing_collection is not None:
                     self.processing_collection.delete_one({"link": bot_link})
                     logger.info(f"Removed {bot_link} from processing collection")
 
