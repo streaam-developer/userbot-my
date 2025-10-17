@@ -36,7 +36,7 @@ POST_CHANNEL_ID = int(post_channel_id)
 # Bot usernames to monitor (configurable via env, comma-separated)
 TARGET_BOT_USERNAMES = os.getenv(
     'TARGET_BOT_USERNAMES',
-    '@Dairy_share2bot,@quality_filesbot,@File_extractorbot,@Flipkart_filebot,@Kitkat_sharebot,@Unfiltered_filebot,@Desiiihub_bot,@Sanzzyyyyyfree_bot,@Instaidsbot,@Arararararararobot,@UwUlinkbot,@Oneetouch_bot,@File_senderrbot,@Niggerndra_bot,@Happystreettsbot,@Juicerequestbot,@Earningtipssbot,@Monkepostingbot,@Premiumposterrbot,@MarleGbot,@Lmaoxdfilebot,@arigatooooooobot,@Onisannnnnbot,@Amazon_sharebot'
+    '@Jalebi_questbot,@Dairy_share2bot,@quality_filesbot,@File_extractorbot,@Flipkart_filebot,@Kitkat_sharebot,@Unfiltered_filebot,@Desiiihub_bot,@Sanzzyyyyyfree_bot,@Instaidsbot,@Arararararararobot,@UwUlinkbot,@Oneetouch_bot,@File_senderrbot,@Niggerndra_bot,@Happystreettsbot,@Juicerequestbot,@Earningtipssbot,@Monkepostingbot,@Premiumposterrbot,@MarleGbot,@Lmaoxdfilebot,@arigatooooooobot,@Onisannnnnbot,@Amazon_sharebot'
 ).split(',')
 
 TARGET_BOT_USERNAME = TARGET_BOT_USERNAMES[0]  # Keep for backward compatibility
