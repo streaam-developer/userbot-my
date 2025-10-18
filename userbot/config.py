@@ -27,11 +27,16 @@ if not target_channel_id:
     raise ValueError("TARGET_CHANNEL_ID must be set in environment variables")
 TARGET_CHANNEL_ID = int(target_channel_id)
 
-# Post Channel ID where original posts will be forwarded
-post_channel_id = os.getenv('POST_CHANNEL_ID', "-1002981998032")
-if not post_channel_id:
-    raise ValueError("POST_CHANNEL_ID must be set in environment variables")
-POST_CHANNEL_ID = int(post_channel_id)
+# Post Channel IDs where original posts will be forwarded (comma-separated)
+post_channel_ids = os.getenv('POST_CHANNEL_IDS', "-1002981998032")
+if not post_channel_ids:
+    raise ValueError("POST_CHANNEL_IDS must be set in environment variables")
+POST_CHANNEL_IDS = [int(cid.strip()) for cid in post_channel_ids.split(',')]
+
+# Bot username for link generation (configurable)
+BOT_USERNAME = os.getenv('BOT_USERNAME', "boltarhegabot")
+if not BOT_USERNAME:
+    raise ValueError("BOT_USERNAME must be set in environment variables")
 
 # Bot usernames to monitor (configurable via env, comma-separated)
 TARGET_BOT_USERNAMES = os.getenv(

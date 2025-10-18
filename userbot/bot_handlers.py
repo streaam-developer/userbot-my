@@ -5,7 +5,8 @@ import asyncio
 import logging
 import re
 
-from config import POST_CHANNEL_ID, TARGET_CHANNEL_ID, TARGET_BOT_USERNAMES
+from telethon.tl.custom import Button
+from config import POST_CHANNEL_IDS, TARGET_CHANNEL_ID, BOT_USERNAME, TARGET_BOT_USERNAMES
 
 logger = logging.getLogger(__name__)
 
@@ -70,25 +71,33 @@ class BotHandlers:
                             logger.info(f"No access links generated for {link}, keeping original")
                             link_replacements[link] = link
 
-                # Replace original links with access links and forward to POST_CHANNEL
+                # Replace original links with access links and forward to all POST_CHANNELs
                 if link_replacements:
                     new_text = event.text
                     for original_link, access_link in link_replacements.items():
                         if access_link != original_link:  # Only replace if we have a different access link
                             new_text = new_text.replace(original_link, access_link)
 
-                    # Forward the modified message to POST_CHANNEL without author
-                    post_forwarded = await event.client.send_message(
-                        POST_CHANNEL_ID,
-                        new_text,
-                        file=target_forwarded.media if hasattr(target_forwarded, 'media') else None
-                    )
-                    logger.info(f"Forwarded modified message to POST_CHANNEL_ID: {POST_CHANNEL_ID}")
+                    # Forward the modified message to all POST_CHANNELs without author
+                    for post_channel_id in POST_CHANNEL_IDS:
+                        post_forwarded = await event.client.send_message(
+                            post_channel_id,
+                            new_text,
+                            file=target_forwarded.media if hasattr(target_forwarded, 'media') else None,
+                            buttons=[[Button.url("🔗 Open Link", f"https://t.me/{BOT_USERNAME}?start={target_forwarded.id}")]]
+                        )
+                        logger.info(f"Forwarded modified message to POST_CHANNEL_ID: {post_channel_id}")
                 else:
-                    logger.info("No link replacements needed, forwarding original to POST_CHANNEL")
-                    # Forward original message to POST_CHANNEL without author
-                    post_forwarded = await event.forward_to(POST_CHANNEL_ID, drop_author=True)
-                    logger.info(f"Forwarded original message to POST_CHANNEL_ID: {POST_CHANNEL_ID}")
+                    logger.info("No link replacements needed, forwarding original to all POST_CHANNELs")
+                    # Forward original message to all POST_CHANNELs without author
+                    for post_channel_id in POST_CHANNEL_IDS:
+                        post_forwarded = await event.client.send_message(
+                            post_channel_id,
+                            event.text,
+                            file=target_forwarded.media if hasattr(target_forwarded, 'media') else None,
+                            buttons=[[Button.url("🔗 Open Link", f"https://t.me/{BOT_USERNAME}?start={target_forwarded.id}")]]
+                        )
+                        logger.info(f"Forwarded original message to POST_CHANNEL_ID: {post_channel_id}")
             else:
                 logger.debug("Message does not contain target bot username or links, ignoring")
         except Exception as e:
