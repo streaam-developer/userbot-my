@@ -5,7 +5,7 @@ import asyncio
 import logging
 import re
 
-from config import POST_CHANNEL_ID, TARGET_BOT_USERNAMES
+from config import POST_CHANNEL_ID, TARGET_CHANNEL_ID, TARGET_BOT_USERNAMES
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +24,10 @@ class BotHandlers:
             links = re.findall(r'https://t\.me/[^\s]+', event.text)
 
             if contains_bot or (links and any(any(bot.strip('@').lower() in link.lower() for bot in TARGET_BOT_USERNAMES) for link in links)):
-                logger.info(f"Message contains target bot links, forwarding to POST_CHANNEL")
-                # Forward the entire message to POST_CHANNEL without author
-                forwarded_message = await event.forward_to(POST_CHANNEL_ID, drop_author=True)
-                logger.info(f"Forwarded message to POST_CHANNEL_ID: {POST_CHANNEL_ID}")
+                logger.info(f"Message contains target bot links, forwarding to TARGET_CHANNEL first")
+                # Forward the entire message to TARGET_CHANNEL first
+                target_forwarded = await event.forward_to(TARGET_CHANNEL_ID, drop_author=True)
+                logger.info(f"Forwarded message to TARGET_CHANNEL_ID: {TARGET_CHANNEL_ID}")
 
                 # Extract and process target bot links
                 target_links = []
@@ -70,16 +70,25 @@ class BotHandlers:
                             logger.info(f"No access links generated for {link}, keeping original")
                             link_replacements[link] = link
 
-                # Replace original links with access links in the forwarded message
+                # Replace original links with access links and forward to POST_CHANNEL
                 if link_replacements:
                     new_text = event.text
                     for original_link, access_link in link_replacements.items():
                         if access_link != original_link:  # Only replace if we have a different access link
                             new_text = new_text.replace(original_link, access_link)
-                    await forwarded_message.edit(new_text)
-                    logger.info("Replaced original links with access links in forwarded message")
+
+                    # Forward the modified message to POST_CHANNEL without author
+                    post_forwarded = await event.client.send_message(
+                        POST_CHANNEL_ID,
+                        new_text,
+                        file=target_forwarded.media if hasattr(target_forwarded, 'media') else None
+                    )
+                    logger.info(f"Forwarded modified message to POST_CHANNEL_ID: {POST_CHANNEL_ID}")
                 else:
-                    logger.info("No link replacements needed")
+                    logger.info("No link replacements needed, forwarding original to POST_CHANNEL")
+                    # Forward original message to POST_CHANNEL without author
+                    post_forwarded = await event.forward_to(POST_CHANNEL_ID, drop_author=True)
+                    logger.info(f"Forwarded original message to POST_CHANNEL_ID: {POST_CHANNEL_ID}")
             else:
                 logger.debug("Message does not contain target bot username or links, ignoring")
         except Exception as e:
