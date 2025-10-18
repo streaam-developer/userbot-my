@@ -44,16 +44,30 @@ class BotHandlers:
                         else:
                             logger.info(f"Skipping non-target link: {link}")
 
-                # Process each target link and collect access links
+                # Process each target link in parallel and collect access links
                 link_replacements = {}
-                for link in target_links:
-                    logger.info(f"Processing link: {link}")
-                    access_links = await self.userbot.process_bot_link(link)
-                    if access_links:
-                        # Assuming one access link per bot link for simplicity
-                        link_replacements[link] = access_links[0] if access_links else link
-                    else:
-                        logger.info(f"No access links generated for {link}, keeping original")
+                if target_links:
+                    logger.info(f"Processing {len(target_links)} links in parallel")
+                    # Process all links concurrently
+                    tasks = [self.userbot.process_bot_link(link) for link in target_links]
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+                    for link, result in zip(target_links, results):
+                        if isinstance(result, Exception):
+                            logger.error(f"Error processing link {link}: {str(result)}")
+                            link_replacements[link] = link  # Keep original on error
+                        elif result:
+                            # Handle multiple access links per bot link
+                            if isinstance(result, list) and len(result) > 0:
+                                # For now, use the first access link, but could be modified to handle multiple
+                                link_replacements[link] = result[0]
+                                logger.info(f"Processed link {link} -> {result[0]}")
+                            else:
+                                logger.info(f"No access links generated for {link}, keeping original")
+                                link_replacements[link] = link
+                        else:
+                            logger.info(f"No access links generated for {link}, keeping original")
+                            link_replacements[link] = link
 
                 # Replace original links with access links in the forwarded message
                 if link_replacements:

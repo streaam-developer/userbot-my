@@ -28,7 +28,7 @@ if not target_channel_id:
 TARGET_CHANNEL_ID = int(target_channel_id)
 
 # Post Channel ID where original posts will be forwarded
-post_channel_id = os.getenv('POST_CHANNEL_ID', "-1002818242381")
+post_channel_id = os.getenv('POST_CHANNEL_ID', "-1002981998032")
 if not post_channel_id:
     raise ValueError("POST_CHANNEL_ID must be set in environment variables")
 POST_CHANNEL_ID = int(post_channel_id)
