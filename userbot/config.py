@@ -22,13 +22,13 @@ MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb+srv://sonukumarkrbbu60:lfkTvljnt
 DATABASE_NAME = os.getenv('DATABASE_NAME', 'userbot_db')
 
 # Target Channel ID where videos will be forwarded
-target_channel_id = os.getenv('TARGET_CHANNEL_ID', "-1002818242381")
+target_channel_id = os.getenv('TARGET_CHANNEL_ID', "-1003198232571")
 if not target_channel_id:
     raise ValueError("TARGET_CHANNEL_ID must be set in environment variables")
 TARGET_CHANNEL_ID = int(target_channel_id)
 
 # Post Channel IDs where original posts will be forwarded (comma-separated)
-post_channel_ids = os.getenv('POST_CHANNEL_IDS', "-1002981998032")
+post_channel_ids = os.getenv('POST_CHANNEL_IDS', "-1002946555618")
 if not post_channel_ids:
     raise ValueError("POST_CHANNEL_IDS must be set in environment variables")
 POST_CHANNEL_IDS = [int(cid.strip()) for cid in post_channel_ids.split(',')]
