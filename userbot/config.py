@@ -28,7 +28,7 @@ if not target_channel_id:
 TARGET_CHANNEL_ID = int(target_channel_id)
 
 # Post Channel IDs where original posts will be forwarded (comma-separated)
-post_channel_ids = os.getenv('POST_CHANNEL_IDS', "-1002946555618")
+post_channel_ids = os.getenv('POST_CHANNEL_IDS', "-1002981998032,-1002536845351,-1002946555618")
 if not post_channel_ids:
     raise ValueError("POST_CHANNEL_IDS must be set in environment variables")
 POST_CHANNEL_IDS = [int(cid.strip()) for cid in post_channel_ids.split(',')]
